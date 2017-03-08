@@ -1,39 +1,48 @@
 #import "CBLite.h"
 
 #import "CouchbaseLite.h"
-#import "CBLListener.h"
 #import "CBLRegisterJSViewCompiler.h"
 
 #import <Cordova/CDV.h>
 
 @implementation CBLite
 
-@synthesize liteURL;
-
 - (void)pluginInitialize {
-    [self launchCouchbaseLite];
+    dbs = [NSMutableDictionary dictionary]
 }
-
+/*
 - (void)getURL:(CDVInvokedUrlCommand*)urlCommand
 {
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:[self.liteURL absoluteString]];
     [self.commandDelegate sendPluginResult:pluginResult callbackId:urlCommand.callbackId];
 }
+*/
 
-- (void)launchCouchbaseLite
+- (void)open:(CDVInvokedUrlCommand*)command
 {
-    NSLog(@"Launching Couchbase Lite...");
-    CBLManager* dbmgr = [CBLManager sharedInstance];
-    CBLRegisterJSViewCompiler();
-#if 1
-    // Couchbase Lite 1.0's CBLRegisterJSViewCompiler function doesn't register the filter compiler
-    if ([CBLDatabase filterCompiler] == nil) {
-        Class cblJSFilterCompiler = NSClassFromString(@"CBLJSFilterCompiler");
-        [CBLDatabase setFilterCompiler: [[cblJSFilterCompiler alloc] init]];
+    CDVPluginResult* pluginResult = nil;
+
+    CBLDatabaseOptions *option = [[CBLDatabaseOptions alloc] init];
+    option.create = YES;
+    option.storageType = kCBLSQLiteStorage;
+
+    NSString* dbName = [command.arguments objectAtIndex:0];
+
+    NSError *error;
+    CBLDatabase *database = [[CBLManager sharedInstance] openDatabaseNamed:dbName
+                                                               withOptions:option
+                                                                     error:&error];
+
+    if (error) {
+        NSLog(@"Cannot open database %@ with an error : %@", dbName, [error description]);
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:[error description]];
+    } else {
+        NSLog(@"Opened database %@", dbName);
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+        dbs[dbName] = database;
+        NSLog(@"Registered database %@", dbs[dbName].name);
     }
-#endif
-    self.liteURL = dbmgr.internalURL;
-    NSLog(@"Couchbase Lite url = %@", self.liteURL);
+    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
 @end
