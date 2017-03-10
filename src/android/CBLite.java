@@ -33,7 +33,7 @@ import java.io.IOException;
 public class CBLite extends CordovaPlugin {
 
 	private static Manager manager;
-	private Map<String, String> dbs;
+	private Map<String, Database> dbs;
 
 	private boolean initFailed = false;
 
