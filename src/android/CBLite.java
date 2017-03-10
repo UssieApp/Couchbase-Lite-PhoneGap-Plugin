@@ -24,6 +24,8 @@ import com.couchbase.lite.javascript.JavaScriptReplicationFilterCompiler;
 import com.couchbase.lite.javascript.JavaScriptViewCompiler;
 import com.couchbase.lite.util.Log;
 
+import java.util.Map;
+import java.util.HashMap;
 import java.io.IOException;
 // import java.io.File;
 
