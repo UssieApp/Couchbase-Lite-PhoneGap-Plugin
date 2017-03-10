@@ -82,11 +82,10 @@ public class CBLite extends CordovaPlugin {
 		}
 		try {
 			String name = args.getString(0);
-			switch (action) {
-				case "open":
-					return this.open(name, callback);
-				case "close":
-					return this.close(name, callback);
+			if (action.equals("open")) {
+				return this.open(name, callback);
+			} else if (action.equals("close")) {
+				return this.close(name, callback);
 			}
 		} catch (final Exception e) {
 			e.printStackTrace();
@@ -104,13 +103,19 @@ public class CBLite extends CordovaPlugin {
 	}
 
 	private boolean open(String name, CallbackContext callback) throws JSONException {
-		DatabaseOptions options = new DatabaseOptions();
-		options.setCreate(true);
+		try {
+			DatabaseOptions options = new DatabaseOptions();
+			options.setCreate(true);
 
-		Database database = manager.openDatabase(name, options);
-		dbs.put(name, database);
-		callback.success();
-		return true;
+			Database database = manager.openDatabase(name, options);
+			dbs.put(name, database);
+			callback.success();
+			return true;
+		} catch (final Exception e) {
+			initFailed = true;
+			callback.error(e.getMessage());
+			return false;
+		}
 	}
 
 	private boolean close(String name, CallbackContext callback) throws JSONException {
