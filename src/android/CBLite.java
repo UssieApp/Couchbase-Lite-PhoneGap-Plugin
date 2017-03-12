@@ -1,4 +1,4 @@
-package com.ussieapp.cblite.phonegap;
+package com.couchbase.lite.phonegap;
 
 import android.content.Context;
 
