@@ -1,16 +1,20 @@
-<?xml version="1.0"?>
-<plugin xmlns="http://www.phonegap.com/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android" id="com.ussieapp.lite.phonegap" version="1.4.0">
-  <name>Couchbase Lite</name>
-  <description>Install Couchbase Lite in your app to enable JSON sync.</description>
-  <license>Apache 2.0</license>
-  <js-module src="www/cblite.js" name="CouchbaseLite">
-    <clobbers target="window.cblite"/>
-  </js-module>
-  <asset src="www/cblite-example.html" target="cblite-example.html"/>
-  <dependency id="com.rjfun.cordova.ext" version=">=1.0.0" />
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android" id="cordova-couchbase-lite" version="1.4.0">
   <engines>
     <engine name="cordova" version=">=3.0.0"/>
   </engines>
+  <name>Couchbase Lite</name>
+  <description>Use Couchbase Lite directly from within your app.</description>
+  <author>Tom O'Reilly</author>
+  <keywords>CBLite,couchbase-lite</keywords>
+  <license>Apache 2.0</license>
+
+  <asset src="www/cblite-example.html" target="cblite-example.html"/>
+
+  <js-module src="www/cblite.js" name="CBLite">
+    <clobbers target="window.cblite"/>
+  </js-module>
+  <dependency id="com.rjfun.cordova.ext" url="https://github.com/floatinghotpot/cordova-extension" version=">=1.0.0" />
   <platform name="ios">
     <config-file target="config.xml" parent="/widget">
       <feature name="CBLite">
