@@ -12,8 +12,6 @@ cordova.define("com.ussieapp.lite.phonegap.CouchbaseLite", function(require, exp
 
 */
 
-document.addEventListener("CBLite", function(data) { console.log(data); }, false);
-
 module.exports = {
     info: function(onSuccess, onError) {
         cordova.exec(onSuccess, onError, "CBLite", "info", []);
