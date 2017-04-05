@@ -307,6 +307,12 @@ public class CBLite extends CordovaPluginExt {
         return new Status(Status.OK);
     }
 
+    private Status action_compactDatabase(Database db)
+            throws CouchbaseLiteException {
+        db.compact();
+        return new Status(Status.OK);
+    }
+
     private JSONObject action_documentCount(Database db)
             throws JSONException {
         JSONObject out = new JSONObject();
@@ -321,12 +327,6 @@ public class CBLite extends CordovaPluginExt {
         return out;
     }
 
-    private Status action_compactDatabase(Database db)
-            throws CouchbaseLiteException {
-        db.compact();
-        return new Status(Status.OK);
-    }
-
     private Status action_replicate(Database db, JSONObject data)
             throws JSONException, ParseException, MalformedURLException {
         String from = data.optString("from");
@@ -337,15 +337,6 @@ public class CBLite extends CordovaPluginExt {
             repl = db.createPullReplication(new URL(from));
         } else {
             repl = db.createPushReplication(new URL(to));
-        }
-
-        if (!data.isNull("session_id")) {
-            String cookie = data.getString("cookie_name");
-            String id = data.getString("session_id");
-
-            Date date = dateParser.parse(data.optString("expires"));
-
-            repl.setCookie(cookie, id, "/", date, false, false);
         }
 
         if (!data.isNull("headers")) {
@@ -452,13 +443,12 @@ public class CBLite extends CordovaPluginExt {
         }
     }
 
-    private void addView(Database db,
+    private void addJSView(Database db,
                          String name,
                          String version,
                          JSONObject options,
-                         String map,
-                         String reduce,
-                         String type) throws JSONException {
+                         Object map,
+                         Object reduce) throws JSONException {
 
         View v = db.getView(name);
         if (options != null) {
@@ -472,9 +462,9 @@ public class CBLite extends CordovaPluginExt {
 
         if (!version.equals(v.getMapVersion())) {
             ViewCompiler comp = View.getCompiler();
-            Mapper m = comp.compileMap(map, type);
+            Mapper m = comp.compileMap(map, "javascript");
             if (!reduce.isEmpty()) {
-                Reducer r = comp.compileReduce(reduce, type);
+                Reducer r = comp.compileReduce(reduce, "javascript");
                 v.setMapReduce(m, r, version);
             } else {
                 v.setMap(m, version);
@@ -502,7 +492,7 @@ public class CBLite extends CordovaPluginExt {
         String map = data.getString("map");
         String reduce = data.optString("reduce");
 
-        addView(db, name, version, options, map, reduce, "javascript");
+        addJSView(db, name, version, options, map, reduce);
         return new Status(Status.OK);
     }
 
@@ -528,15 +518,15 @@ public class CBLite extends CordovaPluginExt {
                                             JSONObject options)
             throws IOException, JSONException {
 
-        String map = loadFromAssets(String.format("%s/%s/map.js", path, name));
+        String map = loadFromAssets(String.format("www/%s/%s/map.js", path, name));
         String reduce = "";
         try {
-            reduce = loadFromAssets(String.format("%s/%s/reduce.js", path, name));
+            reduce = loadFromAssets(String.format("www/%s/%s/reduce.js", path, name));
         } catch (IOException e) {
             // reduce is optional, so allow
         }
 
-        addView(db, name, version, options, map, reduce, "javascript");
+        addJSView(db, name, version, options, map, reduce);
         return new Status(Status.OK);
     }
 
@@ -598,11 +588,11 @@ public class CBLite extends CordovaPluginExt {
         }
         Query q = v.createQuery();
 
+        buildQuery(q, options);
+
         if (!q.isMapOnly() && v.getReduce() == null) {
             throw (new CouchbaseLiteException("Reduce requested but not defined.", Status.NOT_FOUND));
         }
-
-        buildQuery(q, options);
 
         QueryEnumerator results = q.run();
 
@@ -613,16 +603,9 @@ public class CBLite extends CordovaPluginExt {
 
     private JSONObject action_put(Database db, JSONObject data)
             throws CouchbaseLiteException, JSONException {
-        Document doc;
-        String _id = data.optString("_id");
-        if (_id.isEmpty()) {
-            doc = db.createDocument();
-        } else {
-//				doc = db.getDocument(_id);
-            doc = new Document(db, _id);
-            data.remove("_id");
-        }
+        Document doc = db.createDocument();
         SavedRevision rev = doc.putProperties(toMap(data));
+
         JSONObject out = new JSONObject();
         out.put("id", _id);
         out.put("rev", rev.getSequence());
