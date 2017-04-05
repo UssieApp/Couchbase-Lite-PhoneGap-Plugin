@@ -14,7 +14,7 @@
   <js-module src="www/cblite.js" name="CBLite">
     <clobbers target="window.cblite"/>
   </js-module>
-  <dependency id="com.rjfun.cordova.ext" url="https://github.com/floatinghotpot/cordova-extension" version=">=1.0.0" />
+  <dependency id="cordova-plugin-extension" url="https://github.com/floatinghotpot/cordova-extension" version=">=1.0.0" />
   <platform name="ios">
     <config-file target="config.xml" parent="/widget">
       <feature name="CBLite">

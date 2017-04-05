@@ -1,59 +1,94 @@
 #import <Cordova/CDV.h>
+#import "CBLDatabase.h"
+#import "CBLQuery.h"
 
-@interface CBLite : CDVPlugin
+@interface CBLiteView : NSObject
 {
-@private
-    NSMutableDictionary *dbs;
+    
 }
 
+@property CBLLiveQuery* query;
+    
+@property id<CDVCommandDelegate> delegate;
+    
+@property NSString* callbackId;
 
-//@property (nonatomic, strong) NSURL *liteURL;
+@property NSDictionary* options;
 
-//- (void)getURL:(CDVInvokedUrlCommand*)urlCommand;
+#pragma mark - Static Utilities
 
-#pragma mark - Database
++(void)add:(NSString*)viewName toDb:(CBLDatabase*)db
+                        withVersion:(NSString*)version
+                        withOptions:(NSDictionary*)opts
+                            withMap:(NSString*)map
+                         withReduce:(NSString*)reduce;
 
-- (void) open: (CDVInvokedUrlCommand*)command;
-/*
-- (void) close: (CDVInvokedUrlCommand*)command;
++(void)buildQuery:(CBLQuery*)q withParams:(NSDictionary*)params;
 
-#pragma mark - Documents
++(NSMutableDictionary*)buildResult:(CBLQueryEnumerator*)results
+                       withOptions:(NSDictionary*)options
+                            fromDb:(CBLDatabase*)db;
 
-- (void) get: (CDVInvokedUrlCommand*)command;
+#pragma mark - Live Queries
 
-#pragma mark - View
+-(id)initWithLiveQuery:(CBLLiveQuery*)q
+         forCallbackId:(NSString*)cid
+          withDelegate:(id<CDVCommandDelegate>)del
+           withOptions:(NSDictionary*)opts;
+
+-(void)stop;
+
+@end
+
+@interface CBLite : CDVPlugin
+
+@property NSMutableDictionary<NSString*, id<NSObject>> *watches;
+    
+@property NSMutableDictionary<NSString*, CBLiteView*> *liveQueries;
+
+#pragma mark - Manager
 
 - (void) info: (CDVInvokedUrlCommand*)command;
 
-#pragma mark - Replication
+- (void) openDatabase: (CDVInvokedUrlCommand*)command;
+
+#pragma mark - Database
+
+- (void) closeDatabase: (CDVInvokedUrlCommand*)command;
+
+- (void) deleteDatabase: (CDVInvokedUrlCommand*)command;
+
+- (void) compactDatabase: (CDVInvokedUrlCommand*)command;
+
+
+- (void) documentCount: (CDVInvokedUrlCommand*)command;
+
+- (void) lastSequenceNumber: (CDVInvokedUrlCommand*)command;
+
+- (void) replicate: (CDVInvokedUrlCommand*)command;
+
+#pragma mark - View
+
+- (void) setView: (CDVInvokedUrlCommand*)command;
+
+- (void) setViewFromAssets: (CDVInvokedUrlCommand*)command;
+
+#pragma mark - Query
+
+- (void) get: (CDVInvokedUrlCommand*)command;
+
+- (void) getAll: (CDVInvokedUrlCommand*)command;
+
+- (void) getFromView: (CDVInvokedUrlCommand*)command;
+
+- (void) stopLiveQuery: (CDVInvokedUrlCommand*)command;
+
+- (void) put: (CDVInvokedUrlCommand*)command;
 
 #pragma mark - Changes
-*/
+
+- (void) registerWatch: (CDVInvokedUrlCommand*)command;
+
+- (void) removeWatch: (CDVInvokedUrlCommand*)command;
+
 @end
-
-/*
-    All methods should expect @NSString name as the first parameter, and attempt to pull the db
-    from the *dbs dictionary(, or create the db if it isn't there?)
-
-    required methods:
-
-    database:
-    open(name string, create bool) bool, error
-    close(name string)
-
-    view:
-    info(db string, view string) json, error
-    add(db string, view string, code string, update bool) error
-    query(db string, view string, params json) json, error
-
-    document:
-    create
-    get
-    update
-    (delete?)
-    all
-
-
-*/
-
-

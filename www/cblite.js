@@ -1,4 +1,4 @@
-cordova.define("com.ussieapp.lite.phonegap.CouchbaseLite", function(require, exports, module) {
+cordova.define("cordova-couchbase-lite.CBLite", function(require, exports, module) {
 // TODO keep a map of opened dbs, return the methods as an object with name ready to fill in?
 
 /*
@@ -15,6 +15,9 @@ cordova.define("com.ussieapp.lite.phonegap.CouchbaseLite", function(require, exp
 document.addEventListener("CBLite", function(data) { console.log(data); }, false);
 
 module.exports = {
+               /*
+                returns object with "version", "directory" and "databases"
+                */
     info: function(onSuccess, onError) {
         cordova.exec(onSuccess, onError, "CBLite", "info", []);
     },
@@ -22,9 +25,7 @@ module.exports = {
     openDatabase: function(onOpenSuccess, onOpenError, name, create) {
         var onOpen = function() {
             return onOpenSuccess({
-                name: function() {
-                    return name;
-                },
+                name: name,
                 documentCount: function(onSuccess, onError) {
                     cordova.exec(onSuccess, onError, "CBLite", "documentCount", [ name ]);
                 },
@@ -82,6 +83,11 @@ module.exports = {
 
                 getFromView: function(onSuccess, onError, viewName, params) {
                     cordova.exec(onSuccess, onError, "CBLite", "getFromView", [ name, viewName, params ]);
+                },
+                                
+                                 	
+                stopLiveQuery: function(onSuccess, onError, id) {
+                    cordova.exec(onSuccess, onError, "CBLite", "stopLiveQuery", [ name, id ]);
                 },
 
                 // putLocalDocument
