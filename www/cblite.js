@@ -12,8 +12,6 @@ cordova.define("cordova-couchbase-lite.CBLite", function(require, exports, modul
 
 */
 
-document.addEventListener("CBLite", function(data) { console.log(data); }, false);
-
 module.exports = {
                /*
                 returns object with "version", "directory" and "databases"

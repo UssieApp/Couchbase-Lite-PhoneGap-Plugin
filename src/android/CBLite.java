@@ -1,12 +1,12 @@
 package com.couchbase.cblite.phonegap;
 
 import org.apache.cordova.CallbackContext;
+import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.CordovaWebView;
 import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.LOG;
 
 import com.couchbase.lite.Predicate;
-import com.rjfun.cordova.ext.CordovaPluginExt;
 
 import com.couchbase.lite.DocumentChange;
 import com.couchbase.lite.Status;
@@ -53,7 +53,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class CBLite extends CordovaPluginExt {
+public class CBLite extends CordovaPlugin {
 
     private static Manager manager;
     private Map<String, Database> dbs;
@@ -156,7 +156,6 @@ public class CBLite extends CordovaPluginExt {
                         pretty = args.toString(4);
                     }
                     LOG.d("execute", String.format(Locale.US, "CBLite: %s (%d): request = %s", action, actor.ordinal(), pretty));
-                    fireEvent("CBLite", action, "request", args);
                 } catch (JSONException e) {
                     //
                 }
@@ -266,7 +265,6 @@ public class CBLite extends CordovaPluginExt {
                     //
                 } finally {
                     LOG.d("execute", String.format(Locale.US, "CBLite: %s (%d): results = %s", action, actor.ordinal(), pretty));
-                    fireEvent("CBLite", action, "response", args, results);
                 }
             }
         });
@@ -652,10 +650,6 @@ public class CBLite extends CordovaPluginExt {
                     out.put("errors", errors);
                     out.put("rows", rows);
 
-                    // fire as an event for testing
-                    fireEvent(name, out);
-
-                    // also put via success listener
                     callback.success(out);
                 } catch (JSONException e) {
                     callback.error(e.getMessage());
@@ -671,25 +665,5 @@ public class CBLite extends CordovaPluginExt {
         Database.ChangeListener l = watches.remove(name);
         db.removeChangeListener(l);
         return new Status(Status.OK);
-    }
-
-    private void fireEvent(final String eventName, final String data) {
-        cordova.getActivity().runOnUiThread(new Runnable() {
-            public void run() {
-                fireEvent("document", eventName, data);
-            }
-        });
-    }
-
-    private void fireEvent(String eventName, JSONObject data) {
-        fireEvent(eventName, data.toString());
-    }
-
-    private void fireEvent(String eventName, Object... data) {
-        JSONArray out = new JSONArray();
-        for (Object d : data) {
-            out.put(d);
-        }
-        fireEvent(eventName, out.toString());
     }
 }
