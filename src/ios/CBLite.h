@@ -2,6 +2,26 @@
 #import "CBLDatabase.h"
 #import "CBLQuery.h"
 
+@interface CBLiteNotify : NSObject
+{
+    
+}
+
+@property id<CDVCommandDelegate> delegate;
+
+@property NSString* callbackId;
+
+-(id)initWithDelegate:(id<CDVCommandDelegate>)del
+        forCallbackId:(NSString*)cid;
+
+-(void)send:(NSDictionary*)dict andKeep:(Boolean)keep;
+
+-(void)onChange:(NSNotification*)note;
+
+-(void)onSync:(NSNotification*)note;
+
+@end
+
 @interface CBLiteView : NSObject
 {
     
@@ -42,9 +62,11 @@
 
 @interface CBLite : CDVPlugin
 
-@property NSMutableDictionary<NSString*, id<NSObject>> *watches;
-    
 @property NSMutableDictionary<NSString*, CBLiteView*> *liveQueries;
+
++(void)addNotify:(CBLiteNotify*)note;
+
++(void)removeNotify:(NSString*)id;
 
 #pragma mark - Manager
 
@@ -66,6 +88,8 @@
 - (void) lastSequenceNumber: (CDVInvokedUrlCommand*)command;
 
 - (void) replicate: (CDVInvokedUrlCommand*)command;
+
+- (void) stopReplication:(CDVInvokedUrlCommand *)command;
 
 #pragma mark - View
 

@@ -1,16 +1,28 @@
 #import "CBLite.h"
 
-#import "couchbaselite.h"
+#import "CouchbaseLite.h"
 #import "CBLRegisterJSViewCompiler.h"
 
 #import <Cordova/CDV.h>
 
 @implementation CBLite
 
+static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
+
 - (void)pluginInitialize {
     CBLRegisterJSViewCompiler();
-    self.watches = [NSMutableDictionary dictionary];
+    notifiers = [NSMutableDictionary dictionary];
     self.liveQueries = [NSMutableDictionary dictionary];
+}
+
++(void)addNotify:(CBLiteNotify*)note
+{
+    notifiers[note.callbackId] = note;
+}
+
++(void)removeNotify:(NSString*)id
+{
+    [notifiers removeObjectForKey:id];
 }
 
 - (void)info:(CDVInvokedUrlCommand *)command
@@ -210,46 +222,85 @@
     }];
 }
 
+// The NotificationCenter doesn't seem to work when on a background thread!
 -(void)replicate:(CDVInvokedUrlCommand *)command
 {
     NSString* dbName = [command.arguments objectAtIndex:0];
     
     NSDictionary* opts = [command.arguments objectAtIndex:1];
     
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
-                                                          to:^(CBLDatabase* db) {
-        @try {
-    
-            NSString* from = opts[@"from"];
-            NSString* to = opts[@"to"];
-    
-            CBLReplication* repl;
-            if ([from length]) {
-                repl = [db createPullReplication:[NSURL URLWithString:from]];
-            } else {
-                repl = [db createPushReplication:[NSURL URLWithString:to]];
-            }
-
-            NSDictionary* headers = opts[@"headers"];
-            if (headers != NULL) {
-                [repl setHeaders:headers];
-            }
-    
-            [repl setContinuous:[opts[@"continuous"] boolValue]];
-            [repl start];
-    
-            [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_OK]
-             callbackId:command.callbackId];
-        } @catch (NSException* exception) {
-            [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
-             callbackId:command.callbackId];
+    @try {
+        NSError* error;
+        CBLDatabase *db = [[CBLManager sharedInstance] databaseNamed:dbName error:&error];
+        if (error) {
+            @throw [NSException exceptionWithName:@"CBLDatabaseException"
+                                           reason:[error description]
+                                         userInfo:nil];
         }
-    }];
+        
+        NSString* from = opts[@"from"];
+        NSString* to = opts[@"to"];
+        
+        bool continuous = [opts[@"continuous"] boolValue];
+        
+        CBLReplication* repl;
+        if ([from length]) {
+            repl = [db createPullReplication:[NSURL URLWithString:from]];
+        } else {
+            repl = [db createPushReplication:[NSURL URLWithString:to]];
+        }
+        
+        NSDictionary* headers = opts[@"headers"];
+        if (headers != NULL) {
+            [repl setHeaders:headers];
+        }
+        
+        [repl setContinuous:continuous];
+        
+        CBLiteNotify* onSync = [[CBLiteNotify alloc]
+                                initWithDelegate:self.commandDelegate
+                                forCallbackId:command.callbackId];
+
+        [[NSNotificationCenter defaultCenter] addObserver: onSync
+                                                 selector: @selector(onSync:)
+                                                     name: kCBLReplicationChangeNotification
+                                                   object: repl];
+        
+        [repl start];
+        
+        [CBLite addNotify:onSync];
+        
+        // TODO send first notification containing id
+        
+    } @catch (NSException* exception) {
+        NSLog(@"REPL ERROR: %@", exception);
+        [self.commandDelegate
+         sendPluginResult:[CDVPluginResult
+                           resultWithStatus:CDVCommandStatus_ERROR
+                           messageAsString:[exception reason]]
+         callbackId:command.callbackId];
+    }
+}
+
+-(void)stopReplication:(CDVInvokedUrlCommand *)command
+{
+    NSString* id = [command.arguments objectAtIndex:1];
+    
+    // TODO send a "stopping replication" message?
+    
+    @try {
+        [CBLite removeNotify:id];
+        [self.commandDelegate
+         sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
+         callbackId:command.callbackId];
+    } @catch (NSException* exception) {
+        [self.commandDelegate
+         sendPluginResult:[CDVPluginResult
+                           resultWithStatus:CDVCommandStatus_ERROR
+                           messageAsString:[exception reason]]
+         callbackId:command.callbackId];
+    }
+    
 }
 
 -(void)setView:(CDVInvokedUrlCommand *)command
@@ -446,7 +497,7 @@
                                                reason:@"reduce requested but not defined"
                                              userInfo:nil];
             }
-            
+/*
             if (options[@"live_query"]) {
                 NSString* key = [dbName stringByAppendingFormat:@"%@:%@", viewName, options[@"live_query"]];
                 
@@ -471,7 +522,8 @@
                                                    reason:@"Could not initialize LiveQuery"
                                                  userInfo:nil];
                 }
-            } else {
+ */
+ //           } else {
                 NSError* error;
                 CBLQueryEnumerator* results = [q run:&error];
                 if (error) {
@@ -489,7 +541,7 @@
                                    resultWithStatus:CDVCommandStatus_OK
                                    messageAsDictionary:out]
                  callbackId:command.callbackId];
-            }
+//            }
         } @catch (NSException* exception) {
             [self.commandDelegate
              sendPluginResult:[CDVPluginResult
@@ -557,8 +609,6 @@
 {
     NSString* dbName = [command.arguments objectAtIndex:0];
     
-    NSString* name = [command.arguments objectAtIndex:1];
-
     @try {
         NSError* error;
         CBLDatabase *db = [[CBLManager sharedInstance] databaseNamed:dbName error:&error];
@@ -567,17 +617,20 @@
                                            reason:[error description]
                                          userInfo:nil];
         }
-        self.watches[name] = [[NSNotificationCenter defaultCenter]
-                              addObserverForName: kCBLDatabaseChangeNotification
-                              object: db
-                              queue: nil
-                              usingBlock: ^(NSNotification *n) {
-                                  [self.commandDelegate
-                                   sendPluginResult:[CDVPluginResult
-                                                     resultWithStatus:CDVCommandStatus_OK
-                                                     messageAsDictionary:n.userInfo]
-                                   callbackId:command.callbackId];
-                              }];
+        
+        CBLiteNotify* onChange = [[CBLiteNotify alloc]
+                                  initWithDelegate:self.commandDelegate
+                                  forCallbackId:command.callbackId];
+        
+        [onChange send:@{ @"watch_id" : command.callbackId } andKeep:YES];
+        
+        [[NSNotificationCenter defaultCenter] addObserver: onChange
+                                                 selector: @selector(onChange:)
+                                                     name: kCBLDatabaseChangeNotification
+                                                   object: db];
+
+        [CBLite addNotify:onChange];
+        
     } @catch (NSException* exception) {
         [self.commandDelegate
          sendPluginResult:[CDVPluginResult
@@ -590,11 +643,12 @@
 
 -(void)removeWatch:(CDVInvokedUrlCommand *)command
 {
-    NSString* name = [command.arguments objectAtIndex:1];
+    NSString* id = [command.arguments objectAtIndex:1];
+    
+    // TODO send a "closing watch" message?
     
     @try {
-        [[NSNotificationCenter defaultCenter] removeObserver:self.watches[name]];
-        [self.watches removeObjectForKey:name];
+        [CBLite removeNotify:id];
         [self.commandDelegate
          sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
          callbackId:command.callbackId];
@@ -786,6 +840,126 @@
     
     [self.delegate sendPluginResult:res callbackId:self.callbackId];
     
+}
+
+@end
+
+@implementation CBLiteNotify
+
+-(id)initWithDelegate:(id<CDVCommandDelegate>)del forCallbackId:(NSString *)cid
+{
+    if (self = [super init]) {
+        self.delegate = del;
+        self.callbackId = cid;
+    }
+    return self;
+}
+
+-(void)send:(NSDictionary*)out andKeep:(Boolean)keep
+{
+    CDVPluginResult* res = [CDVPluginResult
+                            resultWithStatus:CDVCommandStatus_OK
+                            messageAsDictionary:out];
+    
+    res.keepCallback = [NSNumber numberWithBool:keep];
+    
+    [self.delegate sendPluginResult:res callbackId:self.callbackId];
+    if (!keep) {
+        [CBLite removeNotify:self.callbackId];
+    }
+}
+
+-(void)onChange:(NSNotification *)note
+{
+    CBLDatabase* db = note.object;
+    
+    NSNumber* lastSeq = [NSNumber numberWithLongLong:db.lastSequenceNumber];
+    
+    NSArray* changes = note.userInfo[@"changes"];
+    
+    NSMutableArray* converted = [NSMutableArray array];
+    for (CBLDatabaseChange* change in changes) {
+        // FIXME make getting the document too an option
+        
+        CBLJSONDict* doc = [[CBLJSONDict alloc] init];
+        if (change.isCurrentRevision && !change.isDeletion) {
+            doc = [[db documentWithID:change.documentID] userProperties];
+        }
+        NSDictionary* out = @{
+                              @"_rev" : change.revisionID,
+                              @"_id" : change.documentID,
+                              @"current" : [NSNumber numberWithBool: change.isCurrentRevision],
+                              @"conflict" : [NSNumber numberWithBool: change.inConflict],
+                              @"deletion" : [NSNumber numberWithBool: change.isDeletion],
+                              @"doc": doc
+                              };
+        [converted addObject:out];
+    }
+    [self send:@{ @"results" : converted, @"last_seq" : lastSeq } andKeep:YES];
+}
+
+-(void)onSync:(NSNotification *)note
+{
+    CBLReplication *r = note.object;
+    
+    NSMutableDictionary* out = [NSMutableDictionary dictionary];
+    
+    out[@"replcationId"] = self.callbackId;
+    out[@"status"] = [NSNumber numberWithInt:r.status];
+    
+    if (r.lastError) {
+        out[@"lastError"] = r.lastError;
+    }
+    
+    Boolean keep = YES;
+    
+    switch (r.status) {
+        case kCBLReplicationIdle:
+            NSLog(@"%@: REPL IDLE: %d of %d [%@] %@ %@",
+                  self.callbackId,
+                  r.completedChangesCount,
+                  r.changesCount,
+                  r.pendingDocumentIDs,
+                  r.lastError,
+                  r);
+            break;
+        case kCBLReplicationActive:
+            NSLog(@"%@: REPL ACTIVE: %d of %d [%@] %@ %@",
+                  self.callbackId,
+                  r.completedChangesCount,
+                  r.changesCount,
+                  r.pendingDocumentIDs,
+                  r.lastError,
+                  r);
+            out[@"total"] = [NSNumber numberWithInt:r.changesCount];
+            out[@"completed"] = [NSNumber numberWithInt:r.changesCount];
+            if (r.pendingDocumentIDs) {
+                out[@"pending"] = r.pendingDocumentIDs;
+            }
+            break;
+        case kCBLReplicationOffline:
+            NSLog(@"%@: REPL OFFLINE: %d of %d [%@] %@ %@",
+                  self.callbackId,
+                  r.completedChangesCount,
+                  r.changesCount,
+                  r.pendingDocumentIDs,
+                  r.lastError,
+                  r);
+            break;
+        case kCBLReplicationStopped:
+            // TODO remove from registry when done?
+            NSLog(@"%@: REPL STOPPED: %d of %d [%@] %@ %@",
+                  self.callbackId,
+                  r.completedChangesCount,
+                  r.changesCount,
+                  r.pendingDocumentIDs,
+                  r.lastError,
+                  r);
+            keep = NO;
+            break;
+    }
+    
+    [self send:out andKeep:keep];
 }
 
 @end
