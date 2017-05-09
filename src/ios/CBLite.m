@@ -27,14 +27,14 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 +(void)removeNotifiersFor:(NSString*)dbName
 {
-    NSArray keys = [notifiers allKeys];
+    NSArray* keys = [notifiers allKeys];
     for (NSString* key in keys) {
         CBLiteNotify* note = notifiers[key];
         if (note && note.dbName == dbName) {
+            NSLog(@"removing key=%@ for db=%@", key, note.dbName);
             [notifiers removeObjectForKey:key];
         }
     }
-    NSLog(@"key=%@ value=%@", key, [myDict objectForKey:key]);
 }
 
 - (void)info:(CDVInvokedUrlCommand *)command
@@ -592,16 +592,16 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
     // check if it's an object
     NSDictionary* data = [command argumentAtIndex:1
                                       withDefault:nil
-                                         andClass:NSDictionary];
+                                         andClass:[NSDictionary class]];
     // if not an object, try parsing into an object from a string
     if (!data) {
-        NSError* err;
+        NSError* error;
         data = [NSJSONSerialization
                 JSONObjectWithData:[command argumentAtIndex:1]
                 options:nil
-                error:err];
+                error:&error];
         
-        if (err) {
+        if (error) {
             [self.commandDelegate
              sendPluginResult:[CDVPluginResult
                                resultWithStatus:CDVCommandStatus_ERROR
@@ -666,7 +666,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
         }
         
         CBLiteNotify* onChange = [[CBLiteNotify alloc]
-                                  initOnDb:dbName,
+                                  initOnDb:dbName
                                   withDelegate:self.commandDelegate
                                   forCallbackId:command.callbackId];
         
@@ -691,7 +691,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)removeWatch:(CDVInvokedUrlCommand *)command
 {
-    NSString* id = [command.command argumentAtIndexments objectAtIndex:1];
+    NSString* id = [command argumentAtIndex:1];
     
     // TODO send a "closing watch" message?
     
