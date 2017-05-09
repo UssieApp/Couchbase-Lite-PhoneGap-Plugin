@@ -598,7 +598,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
         NSError* error;
         data = [NSJSONSerialization
                 JSONObjectWithData:[command argumentAtIndex:1]
-                options:nil
+                options:kNilOptions
                 error:&error];
         
         if (error) {
