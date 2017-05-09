@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android" id="cordova-couchbase-lite-tests" version="1.4.0">
+  <engines>
+    <engine name="cordova" version=">=3.0.0"/>
+  </engines>
+  <name>Couchbase Lite Tests</name>
+  <description>Use Couchbase Lite directly from within your app.</description>
+  <author>Tom O'Reilly</author>
+  <keywords>CBLite,couchbase-lite</keywords>
+  <license>Apache 2.0</license>
+
+  <asset src="www/cblite-example.html" target="cblite-example.html"/>
+
+  <js-module src="tests.js" name="CBLiteTests">
+  </js-module>
+</plugin>
