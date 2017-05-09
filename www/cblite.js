@@ -1,4 +1,3 @@
-cordova.define("cordova-couchbase-lite.CBLite", function(require, exports, module) {
 // TODO keep a map of opened dbs, return the methods as an object with name ready to fill in?
 
 /*
@@ -129,5 +128,3 @@ module.exports = {
         cordova.exec(onOpen, onOpenError, "CBLite", "openDatabase", [ name, create ]);
     }
 };
-
-});
