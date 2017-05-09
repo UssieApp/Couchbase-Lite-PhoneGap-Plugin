@@ -1,20 +1,5 @@
-// TODO keep a map of opened dbs, return the methods as an object with name ready to fill in?
-
-/*
-
-		, ,
-		, lastSequenceNumber, ,
-		,
-		, , ,
-		,
-
-
-*/
-
 module.exports = {
-               /*
-                returns object with "version", "directory" and "databases"
-                */
+    
     info: function(onSuccess, onError) {
         cordova.exec(onSuccess, onError, "CBLite", "info", []);
     },
@@ -43,20 +28,6 @@ module.exports = {
                     cordova.exec(onSuccess, onError, "CBLite", "compactDatabase", [ name ]);
                 },
 
-            //    allReplications:
-
-                /*
-                params:
-                {
-                    to: "URL",   ??
-                    from: "URL", ??
-                    session_id: "...",
-                    cookie_name: "...",
-                    expires: "...",
-                    continuous: true
-                }
-                */
-                // currently only supports autl like { session_id: "...", cookie_name: "...", expires: "..." }
                 replicate: function(onSuccess, onError, params) {
                     cordova.exec(onSuccess, onError, "CBLite", "replicate", [ name, params ]);
                 },

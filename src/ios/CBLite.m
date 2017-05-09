@@ -64,7 +64,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 - (void)openDatabase:(CDVInvokedUrlCommand*)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
 
     @try {
         CBLDatabaseOptions *option = [[CBLDatabaseOptions alloc] init];
@@ -97,7 +97,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)closeDatabase:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
     
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
                                                           to:^(CBLDatabase* db) {
@@ -129,7 +129,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)deleteDatabase:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
     
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
                                                           to:^(CBLDatabase* db) {
@@ -161,7 +161,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)compactDatabase:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
     
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
                                                           to:^(CBLDatabase* db) {
@@ -191,7 +191,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)documentCount:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
     
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
                                                           to:^(CBLDatabase* db) {
@@ -215,7 +215,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)lastSequenceNumber:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
     
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
                                                           to:^(CBLDatabase* db) {
@@ -241,9 +241,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 // The NotificationCenter doesn't seem to work when on a background thread!
 -(void)replicate:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
     
-    NSDictionary* opts = [command.arguments objectAtIndex:1];
+    NSDictionary* opts = [command argumentAtIndex:1];
     
     @try {
         NSError* error;
@@ -301,7 +301,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)stopReplication:(CDVInvokedUrlCommand *)command
 {
-    NSString* id = [command.arguments objectAtIndex:1];
+    NSString* id = [command argumentAtIndex:1];
     
     // TODO send a "stopping replication" message?
     
@@ -322,15 +322,15 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)setView:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
     
-    NSString* viewName = [command.arguments objectAtIndex:1];
+    NSString* viewName = [command argumentAtIndex:1];
     
-    NSString* version = [command.arguments objectAtIndex:2];
+    NSString* version = [command argumentAtIndex:2];
     
-    NSDictionary* data = [command.arguments objectAtIndex:3];
+    NSDictionary* data = [command argumentAtIndex:3];
     
-    NSDictionary* opts = [command.arguments objectAtIndex:4];
+    NSDictionary* opts = [command argumentAtIndex:4];
     
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
                                                           to:^(CBLDatabase* db) {
@@ -358,15 +358,15 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)setViewFromAssets:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
 
-    NSString* viewName = [command.arguments objectAtIndex:1];
+    NSString* viewName = [command argumentAtIndex:1];
     
-    NSString* version = [command.arguments objectAtIndex:2];
+    NSString* version = [command argumentAtIndex:2];
     
-    NSString* path = [command.arguments objectAtIndex:3];
+    NSString* path = [command argumentAtIndex:3];
     
-    NSDictionary* options = [command.arguments objectAtIndex:4];
+    NSDictionary* options = [command argumentAtIndex:4];
 
     NSString* root = [self.commandDelegate pathForResource:path];
     
@@ -413,9 +413,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)get:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
     
-    NSString* _id = [command.arguments objectAtIndex:1];
+    NSString* _id = [command argumentAtIndex:1];
     
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
                                                           to:^(CBLDatabase* db) {
@@ -440,9 +440,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)getAll:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
     
-    NSDictionary* options = [command.arguments objectAtIndex:1];
+    NSDictionary* options = [command argumentAtIndex:1];
     
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
                                                           to:^(CBLDatabase* db) {
@@ -480,11 +480,11 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 // TODO add support for LiveQueries
 -(void)getFromView:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
 
-    NSString* viewName = [command.arguments objectAtIndex:1];
+    NSString* viewName = [command argumentAtIndex:1];
     
-    NSDictionary* options = [command.arguments objectAtIndex:2];
+    NSDictionary* options = [command argumentAtIndex:2];
 
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
                                                           to:^(CBLDatabase* db) {
@@ -571,9 +571,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)stopLiveQuery:(CDVInvokedUrlCommand *)command
 {
-//    NSString* dbName = [command.arguments objectAtIndex:0];
+//    NSString* dbName = [command argumentAtIndex:0];
     
-    NSString* key = [command.arguments objectAtIndex:1];
+    NSString* key = [command argumentAtIndex:1];
     
     [self.liveQueries[key] stop];
     
@@ -587,15 +587,45 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)put:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
     
-    NSDictionary* data = [command.arguments objectAtIndex:1];
+    // check if it's an object
+    NSDictionary* data = [command argumentAtIndex:1
+                                      withDefault:nil
+                                         andClass:NSDictionary];
+    // if not an object, try parsing into an object from a string
+    if (!data) {
+        NSError* err;
+        data = [NSJSONSerialization
+                JSONObjectWithData:[command argumentAtIndex:1]
+                options:nil
+                error:err];
+        
+        if (err) {
+            [self.commandDelegate
+             sendPluginResult:[CDVPluginResult
+                               resultWithStatus:CDVCommandStatus_ERROR
+                               messageAsString:[error description]]
+             callbackId:command.callbackId];
+        } else if (!data) {
+            [self.commandDelegate
+             sendPluginResult:[CDVPluginResult
+                               resultWithStatus:CDVCommandStatus_ERROR
+                               messageAsString:@"Data record missing"]
+             callbackId:command.callbackId];
+        }
+    }
     
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
                                                           to:^(CBLDatabase* db) {
         @try {
             NSError* error;
-            CBLDocument* doc = [db createDocument];
+            CBLDocument* doc;
+            if (data[@"_id"]) {
+                doc = [db documentWithID:data[@"_id"]];
+            } else {
+                doc = [db createDocument];
+            }
             CBLSavedRevision* rev = [doc putProperties:data error:&error];
             if (error) {
                 @throw [NSException exceptionWithName:@"CBLDatabaseException"
@@ -624,7 +654,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)registerWatch:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command.arguments objectAtIndex:0];
+    NSString* dbName = [command argumentAtIndex:0];
     
     @try {
         NSError* error;
@@ -661,7 +691,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 -(void)removeWatch:(CDVInvokedUrlCommand *)command
 {
-    NSString* id = [command.arguments objectAtIndex:1];
+    NSString* id = [command.command argumentAtIndexments objectAtIndex:1];
     
     // TODO send a "closing watch" message?
     
