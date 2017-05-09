@@ -1,0 +1,6 @@
+{
+  "name": "cordova-couchbase-lite",
+  "description": "Alternative cordova plugin for direct access to Couchbase Lite",
+  "version": "0.0.1",
+  "devDependencies": {}
+}
