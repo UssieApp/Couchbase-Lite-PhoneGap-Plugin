@@ -20,9 +20,21 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
     notifiers[note.callbackId] = note;
 }
 
-+(void)removeNotify:(NSString*)id
++(void)removeNotify:(NSString*)key
 {
-    [notifiers removeObjectForKey:id];
+    [notifiers removeObjectForKey:key];
+}
+
++(void)removeNotifiersFor:(NSString*)dbName
+{
+    NSArray keys = [notifiers allKeys];
+    for (NSString* key in keys) {
+        CBLiteNotify* note = notifiers[key];
+        if (note && note.dbName == dbName) {
+            [notifiers removeObjectForKey:key];
+        }
+    }
+    NSLog(@"key=%@ value=%@", key, [myDict objectForKey:key]);
 }
 
 - (void)info:(CDVInvokedUrlCommand *)command
@@ -98,6 +110,8 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
                                                reason:[error description]
                                              userInfo:nil];
             }
+            
+            // TODO do we need to remove listeners here?
     
             [self.commandDelegate
              sendPluginResult:[CDVPluginResult
@@ -128,6 +142,8 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
                                                reason:[error description]
                                              userInfo:nil];
             }
+            
+            // TODO do we need to remove listeners here?
     
             [self.commandDelegate
              sendPluginResult:[CDVPluginResult
@@ -258,7 +274,8 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
         [repl setContinuous:continuous];
         
         CBLiteNotify* onSync = [[CBLiteNotify alloc]
-                                initWithDelegate:self.commandDelegate
+                                initOnDb:dbName
+                                withDelegate:self.commandDelegate
                                 forCallbackId:command.callbackId];
 
         [[NSNotificationCenter defaultCenter] addObserver: onSync
@@ -619,7 +636,8 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
         }
         
         CBLiteNotify* onChange = [[CBLiteNotify alloc]
-                                  initWithDelegate:self.commandDelegate
+                                  initOnDb:dbName,
+                                  withDelegate:self.commandDelegate
                                   forCallbackId:command.callbackId];
         
         [onChange send:@{ @"watch_id" : command.callbackId } andKeep:YES];
@@ -809,9 +827,8 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
         self.options = opts;
         
         [self.query addObserver:self forKeyPath:@"rows" options:0 context:NULL];
-        return self;
     }
-    return nil;
+    return self;
 }
 
 -(void)stop
@@ -846,9 +863,12 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 @implementation CBLiteNotify
 
--(id)initWithDelegate:(id<CDVCommandDelegate>)del forCallbackId:(NSString *)cid
+-(id)initOnDb:(NSString*)db
+ withDelegate:(id<CDVCommandDelegate>)del
+forCallbackId:(NSString *)cid
 {
     if (self = [super init]) {
+        self.dbName = db;
         self.delegate = del;
         self.callbackId = cid;
     }

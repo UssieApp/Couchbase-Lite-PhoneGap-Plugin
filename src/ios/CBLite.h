@@ -7,12 +7,15 @@
     
 }
 
+@property NSString* dbName;
+
 @property id<CDVCommandDelegate> delegate;
 
 @property NSString* callbackId;
 
--(id)initWithDelegate:(id<CDVCommandDelegate>)del
-        forCallbackId:(NSString*)cid;
+-(id)initOnDb:(NSString*)db
+ withDelegate:(id<CDVCommandDelegate>)del
+forCallbackId:(NSString*)cid;
 
 -(void)send:(NSDictionary*)dict andKeep:(Boolean)keep;
 
@@ -66,7 +69,9 @@
 
 +(void)addNotify:(CBLiteNotify*)note;
 
-+(void)removeNotify:(NSString*)id;
++(void)removeNotify:(NSString*)key;
+
++(void)removeNotifiersFor:(NSString*)dbName;
 
 #pragma mark - Manager
 
