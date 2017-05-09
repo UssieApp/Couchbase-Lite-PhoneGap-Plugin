@@ -21,8 +21,8 @@
     <platform name="ios">
         <allow-intent href="itms:*" />
         <allow-intent href="itms-apps:*" />
+        <preference name="BackupWebStorage" value="none" />
     </platform>
-    <engine name="ios" spec="^4.4.0" />
     <plugin name="cordova-couchbase-lite" spec="git+https://github.com/UssieApp/cordova-couchbase-lite.git" />
     <plugin name="cordova-plugin-test-framework" spec="^1.1.5" />
     <plugin name="cordova-plugin-whitelist" spec="1" />

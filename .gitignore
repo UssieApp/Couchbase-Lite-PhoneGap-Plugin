@@ -192,3 +192,7 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
+# Test app cordova values
+test-app/node_modules
+test-app/plugins
+test-app/platforms

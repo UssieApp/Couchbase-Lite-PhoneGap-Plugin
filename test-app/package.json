@@ -1,0 +1,19 @@
+{
+  "name": "CBLiteTests",
+  "description": "Tests for running CBLite",
+  "version": "0.0.1",
+  "devDependencies": {},
+  "dependencies": {
+    "cordova-couchbase-lite": "git+https://github.com/UssieApp/cordova-couchbase-lite.git",
+    "cordova-plugin-test-framework": "^1.1.5",
+    "cordova-plugin-whitelist": "1"
+  },
+  "cordova": {
+    "plugins": {
+      "cordova-plugin-whitelist": {},
+      "cordova-couchbase-lite": {},
+      "cordova-plugin-test-framework": {}
+    },
+    "platforms": []
+  }
+}
