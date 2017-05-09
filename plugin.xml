@@ -9,8 +9,6 @@
   <keywords>CBLite,couchbase-lite</keywords>
   <license>Apache 2.0</license>
 
-  <asset src="www/cblite-example.html" target="cblite-example.html"/>
-
   <js-module src="www/cblite.js" name="CBLite">
     <clobbers target="window.cblite"/>
   </js-module>
