@@ -20,7 +20,7 @@ exports.defineAutoTests = function() {
           });
           done();
         },
-        done.fail);
+        function(res) { done.fail(JSON.stringify(res)); });
     });
 
     it("should fail to open a database that doesn't exist yet (explicit)", function(done) {
@@ -47,6 +47,7 @@ exports.defineAutoTests = function() {
       // TODO double check that the db was actually created
       window.cblite.openDatabase(
         function(res) {
+            db = res;
             expect(res).toEqual(jasmine.objectContaining({ name: dbName }));
             done();
         },
@@ -58,8 +59,8 @@ exports.defineAutoTests = function() {
         // TODO double check that the db was actually closed
         db.closeDatabase(
             function(res) {
-                expects(res).not.toBeDefined();
                 db = null;
+                expect(res).not.toEqual(jasmine.anything());
                 done();
             },
             function(res) { done.fail(JSON.stringify(res)); }
@@ -67,8 +68,10 @@ exports.defineAutoTests = function() {
     });
 
     it("should open a database that already exists", function(done) {
+      // TODO what happens if you attempt to open an already open db?
       window.cblite.openDatabase(
         function(res) {
+            db = res;
             expect(res).toEqual(jasmine.objectContaining({ name: dbName }));
             done();
         },
@@ -80,8 +83,8 @@ exports.defineAutoTests = function() {
         // TODO double check that the db was actually deleted
         db.deleteDatabase(
             function(res) {
-                expects(res).not.toBeDefined();
                 db = null;
+                expect(res).not.toEqual(jasmine.anything());
                 done();
             },
             function(res) { done.fail(JSON.stringify(res)); }
