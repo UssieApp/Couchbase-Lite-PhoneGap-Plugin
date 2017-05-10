@@ -37,6 +37,24 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
     }
 }
 
++(CDVPluginResult*)resultFromError:(NSError*)e
+{
+    return [CDVPluginResult
+            resultWithStatus:CDVCommandStatus_ERROR
+            messageAsDictionary:@{
+                                  @"code": [NSNumber numberWithInteger:e.code],
+                                  @"description": e.localizedFailureReason }];
+}
+
++(CDVPluginResult*)resultFromException:(NSException*)e
+{
+    return [CDVPluginResult
+            resultWithStatus:CDVCommandStatus_ERROR
+            messageAsDictionary:@{
+                                  @"code": @500,
+                                  @"description": e.reason }];
+}
+
 - (void)info:(CDVInvokedUrlCommand *)command
 {
     @try {
@@ -55,9 +73,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
          callbackId:command.callbackId];
     } @catch (NSException* exception) {
         [self.commandDelegate
-         sendPluginResult:[CDVPluginResult
-                           resultWithStatus:CDVCommandStatus_ERROR
-                           messageAsString:[exception reason]]
+         sendPluginResult:[CBLite resultFromException:exception]
          callbackId:command.callbackId];
     }
 }
@@ -66,9 +82,13 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 {
     NSString* dbName = [command argumentAtIndex:0];
 
+    BOOL create = [[command argumentAtIndex:1 withDefault:@NO] boolValue];
+
+    NSLog(@"Open requested: %@ %@ (%@, %d)", dbName, [command argumentAtIndex:1], [command argumentAtIndex:1 withDefault:@NO], create);
+
     @try {
         CBLDatabaseOptions *option = [[CBLDatabaseOptions alloc] init];
-        option.create = YES;
+        option.create = create;
         option.storageType = kCBLSQLiteStorage;
 
         NSError *error;
@@ -77,9 +97,10 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
                                                                    error:&error];
 
         if (error) {
-            @throw [NSException exceptionWithName:@"CBLDatabaseException"
-                                           reason:[error description]
-                                         userInfo:nil];
+            NSLog(@"ERROR: %@ [%ld: %@]", error, (long)error.code, error.localizedFailureReason);
+            return [self.commandDelegate
+                    sendPluginResult:[CBLite resultFromError:error]
+                    callbackId:command.callbackId];
         }
         NSLog(@"Opened database %@", [db name]);
 
@@ -87,10 +108,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
          sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK]
          callbackId:command.callbackId];
     } @catch (NSException* exception) {
+        NSLog(@"EXCEPTION: %@ == %@ (%@)", exception, exception.description, exception.reason);
         [self.commandDelegate
-         sendPluginResult:[CDVPluginResult
-                           resultWithStatus:CDVCommandStatus_ERROR
-                           messageAsString:[exception reason]]
+         sendPluginResult:[CBLite resultFromException:exception]
          callbackId:command.callbackId];
     }
 }
@@ -106,9 +126,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
             NSError *error;
             [db close:&error];
             if (error) {
-                @throw [NSException exceptionWithName:@"CBLDatabaseException"
-                                               reason:[error description]
-                                             userInfo:nil];
+                return [self.commandDelegate
+                        sendPluginResult:[CBLite resultFromError:error]
+                        callbackId:command.callbackId];
             }
             
             // TODO do we need to remove listeners here?
@@ -119,9 +139,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
              callbackId:command.callbackId];
         } @catch (NSException* exception) {
             [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
+             sendPluginResult:[CBLite resultFromException:exception]
              callbackId:command.callbackId];
         }
     }];
@@ -138,9 +156,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
             NSError *error;
             [db deleteDatabase:&error];
             if (error) {
-                @throw [NSException exceptionWithName:@"CBLDatabaseException"
-                                               reason:[error description]
-                                             userInfo:nil];
+                return [self.commandDelegate
+                        sendPluginResult:[CBLite resultFromError:error]
+                        callbackId:command.callbackId];
             }
             
             // TODO do we need to remove listeners here?
@@ -151,9 +169,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
              callbackId:command.callbackId];
         } @catch (NSException* exception) {
             [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
+             sendPluginResult:[CBLite resultFromException:exception]
              callbackId:command.callbackId];
         }
     }];
@@ -170,9 +186,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
             NSError *error;
             [db compact:&error];
             if (error) {
-                @throw [NSException exceptionWithName:@"CBLDatabaseException"
-                                               reason:[error description]
-                                             userInfo:nil];
+                return [self.commandDelegate
+                        sendPluginResult:[CBLite resultFromError:error]
+                        callbackId:command.callbackId];
             }
     
             [self.commandDelegate
@@ -181,9 +197,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
              callbackId:command.callbackId];
         } @catch (NSException* exception) {
             [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
+             sendPluginResult:[CBLite resultFromException:exception]
              callbackId:command.callbackId];
         }
     }];
@@ -205,9 +219,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
              callbackId:command.callbackId];
         } @catch (NSException* exception) {
             [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
+             sendPluginResult:[CBLite resultFromException:exception]
              callbackId:command.callbackId];
         }
     }];
@@ -230,9 +242,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
              callbackId:command.callbackId];
         } @catch (NSException* exception) {
             [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
+             sendPluginResult:[CBLite resultFromException:exception]
              callbackId:command.callbackId];
         }
     }];
@@ -249,9 +259,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
         NSError* error;
         CBLDatabase *db = [[CBLManager sharedInstance] databaseNamed:dbName error:&error];
         if (error) {
-            @throw [NSException exceptionWithName:@"CBLDatabaseException"
-                                           reason:[error description]
-                                         userInfo:nil];
+            return [self.commandDelegate
+                    sendPluginResult:[CBLite resultFromError:error]
+                    callbackId:command.callbackId];
         }
         
         NSString* from = opts[@"from"];
@@ -292,9 +302,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
     } @catch (NSException* exception) {
         NSLog(@"REPL ERROR: %@", exception);
         [self.commandDelegate
-         sendPluginResult:[CDVPluginResult
-                           resultWithStatus:CDVCommandStatus_ERROR
-                           messageAsString:[exception reason]]
+         sendPluginResult:[CBLite resultFromException:exception]
          callbackId:command.callbackId];
     }
 }
@@ -312,9 +320,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
          callbackId:command.callbackId];
     } @catch (NSException* exception) {
         [self.commandDelegate
-         sendPluginResult:[CDVPluginResult
-                           resultWithStatus:CDVCommandStatus_ERROR
-                           messageAsString:[exception reason]]
+         sendPluginResult:[CBLite resultFromException:exception]
          callbackId:command.callbackId];
     }
     
@@ -348,9 +354,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
              callbackId:command.callbackId];
         } @catch (NSException* exception) {
             [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
+             sendPluginResult:[CBLite resultFromException:exception]
              callbackId:command.callbackId];
         }
     }];
@@ -403,9 +407,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
         } @catch (NSException* exception) {
             NSLog(@"%@", [exception callStackSymbols]);
             [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
+             sendPluginResult:[CBLite resultFromException:exception]
              callbackId:command.callbackId];
         }
     }];
@@ -430,9 +432,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
              callbackId:command.callbackId];
         } @catch (NSException* exception) {
             [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
+             sendPluginResult:[CBLite resultFromException:exception]
              callbackId:command.callbackId];
         }
    }];
@@ -453,9 +453,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
             NSError* error;
             CBLQueryEnumerator* results = [q run:&error];
             if (error) {
-                @throw [NSException exceptionWithName:@"CBLDatabaseException"
-                                               reason:[error description]
-                                             userInfo:nil];
+                return [self.commandDelegate
+                        sendPluginResult:[CBLite resultFromError:error]
+                        callbackId:command.callbackId];
             }
             
             NSMutableDictionary* out = [CBLiteView buildResult:results
@@ -469,9 +469,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
         } @catch (NSException* exception) {
             NSLog(@"%@", [exception callStackSymbols]);
             [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
+             sendPluginResult:[CBLite resultFromException:exception]
              callbackId:command.callbackId];
         }
     }];
@@ -494,9 +492,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
             NSError* error;
             CBLDatabase *db = [[CBLManager sharedInstance] databaseNamed:dbName error:&error];
             if (error) {
-                @throw [NSException exceptionWithName:@"CBLDatabaseException"
-                                               reason:[error description]
-                                             userInfo:nil];
+             return [self.commandDelegate
+             sendPluginResult:[CBLite resultFromError:error]
+             callbackId:command.callbackId];
             }
             */
             CBLView* v = [db existingViewNamed:viewName];
@@ -544,9 +542,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
                 NSError* error;
                 CBLQueryEnumerator* results = [q run:&error];
                 if (error) {
-                    @throw [NSException exceptionWithName:@"CBLDatabaseException"
-                                                   reason:[error description]
-                                                 userInfo:nil];
+                    return [self.commandDelegate
+                            sendPluginResult:[CBLite resultFromError:error]
+                            callbackId:command.callbackId];
                 }
     
                 NSMutableDictionary* out = [CBLiteView buildResult:results
@@ -561,9 +559,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 //            }
         } @catch (NSException* exception) {
             [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
+             sendPluginResult:[CBLite resultFromException:exception]
              callbackId:command.callbackId];
         }
     }];
@@ -602,12 +598,11 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
                 error:&error];
         
         if (error) {
-            [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[error description]]
-             callbackId:command.callbackId];
+            return [self.commandDelegate
+                    sendPluginResult:[CBLite resultFromError:error]
+                    callbackId:command.callbackId];
         } else if (!data) {
+            // FIXME utilize resultFrom logic for consistency
             [self.commandDelegate
              sendPluginResult:[CDVPluginResult
                                resultWithStatus:CDVCommandStatus_ERROR
@@ -628,9 +623,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
             }
             CBLSavedRevision* rev = [doc putProperties:data error:&error];
             if (error) {
-                @throw [NSException exceptionWithName:@"CBLDatabaseException"
-                                               reason:[error description]
-                                             userInfo:nil];
+                return [self.commandDelegate
+                        sendPluginResult:[CBLite resultFromError:error]
+                        callbackId:command.callbackId];
             }
     
             NSDictionary* out = @{
@@ -644,9 +639,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
              callbackId:command.callbackId];
         } @catch (NSException* exception) {
             [self.commandDelegate
-             sendPluginResult:[CDVPluginResult
-                               resultWithStatus:CDVCommandStatus_ERROR
-                               messageAsString:[exception reason]]
+             sendPluginResult:[CBLite resultFromException:exception]
              callbackId:command.callbackId];
         }
     }];
@@ -660,9 +653,9 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
         NSError* error;
         CBLDatabase *db = [[CBLManager sharedInstance] databaseNamed:dbName error:&error];
         if (error) {
-            @throw [NSException exceptionWithName:@"CBLDatabaseException"
-                                           reason:[error description]
-                                         userInfo:nil];
+            return [self.commandDelegate
+                    sendPluginResult:[CBLite resultFromError:error]
+                    callbackId:command.callbackId];
         }
         
         CBLiteNotify* onChange = [[CBLiteNotify alloc]
@@ -681,9 +674,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
         
     } @catch (NSException* exception) {
         [self.commandDelegate
-         sendPluginResult:[CDVPluginResult
-                           resultWithStatus:CDVCommandStatus_ERROR
-                           messageAsString:[exception reason]]
+         sendPluginResult:[CBLite resultFromException:exception]
          callbackId:command.callbackId];
     }
 
@@ -702,9 +693,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
          callbackId:command.callbackId];
     } @catch (NSException* exception) {
         [self.commandDelegate
-         sendPluginResult:[CDVPluginResult
-                           resultWithStatus:CDVCommandStatus_ERROR
-                           messageAsString:[exception reason]]
+         sendPluginResult:[CBLite resultFromException:exception]
          callbackId:command.callbackId];
     }
     
