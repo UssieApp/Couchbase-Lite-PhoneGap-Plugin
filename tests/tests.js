@@ -143,6 +143,7 @@ exports.defineAutoTests = function() {
         });
     });
 
+    // FIXME break CRUD into different tests sets
     describe('that supports CRUD', function() {
 
         var count = 0;
@@ -242,6 +243,58 @@ exports.defineAutoTests = function() {
                 function(res) { done.fail(JSON.stringify(res)); },
                 record._id
             );
+        });
+
+        it('should update a record', function(done) {
+            var record = testDocs[1];
+            db.get(
+                function(doc) {
+                    doc.name = 'modified';
+                    db.update(
+                        function(res) {
+                            expect(res).toEqual({
+                                _id: jasmine.any(String),
+                                _rev: jasmine.any(String)
+                            });
+                            seq++;
+                            done();
+                        },
+                        function(res) { done.fail(JSON.stringify(res)); },
+                        doc
+                    );
+                },
+                function(res) { done.fail(JSON.stringify(res)); },
+                record._id
+            );
+        });
+
+        describe('and then', function() {
+            it('should retain the edits', function(done) {
+                var record = testDocs[1];
+                db.get(
+                    function(res) {
+                        expect(res).toEqual(jasmine.objectContaining({ name: 'modified' }));
+                        done();
+                    },
+                    function(res) { done.fail(JSON.stringify(res)); },
+                    record._id
+                );
+
+            });
+
+            it('should have an accurate documentCount', function(done) {
+                db.documentCount(
+                    function(res) { expect(res).toEqual({ count: count }); done(); },
+                    function(res) { done.fail(JSON.stringify(res)); }
+                );
+            });
+
+            it('should have an increasing lastSequence', function(done) {
+                db.lastSequenceNumber(
+                    function(res) { expect(res).toEqual({ last_seq: seq }); done(); },
+                    function(res) { done.fail(JSON.stringify(res)); }
+                );
+            });
         });
 
     });
