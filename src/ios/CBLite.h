@@ -25,47 +25,40 @@ forCallbackId:(NSString*)cid;
 
 @end
 
-@interface CBLiteView : NSObject
+@interface CBLiteQuery : NSObject
 {
     
 }
 
-@property CBLLiveQuery* query;
-    
-@property id<CDVCommandDelegate> delegate;
-    
-@property NSString* callbackId;
+@property CBLQuery* q;
 
-@property NSDictionary* options;
+@property NSMutableDictionary* options;
 
-#pragma mark - Static Utilities
+-(id)init:(CBLQuery*)query withParams:(NSDictionary*)params;
 
-+(void)add:(NSString*)viewName toDb:(CBLDatabase*)db
-                        withVersion:(NSString*)version
-                        withOptions:(NSDictionary*)opts
-                            withMap:(NSString*)map
-                         withReduce:(NSString*)reduce;
-
-+(void)buildQuery:(CBLQuery*)q withParams:(NSDictionary*)params;
-
-+(NSMutableDictionary*)buildResult:(CBLQueryEnumerator*)results
-                       withOptions:(NSDictionary*)options
-                            fromDb:(CBLDatabase*)db;
-
-#pragma mark - Live Queries
-
--(id)initWithLiveQuery:(CBLLiveQuery*)q
-         forCallbackId:(NSString*)cid
-          withDelegate:(id<CDVCommandDelegate>)del
-           withOptions:(NSDictionary*)opts;
-
--(void)stop;
+-(NSMutableDictionary*)run:(NSError*)error;
 
 @end
 
+@interface CBLiteLiveQuery : CBLiteQuery;
+
+@property CBLLiveQuery* live;
+
+@property CBLiteNotify* notify;
+
+-(id)init:(CBLQuery*)query withParams:(NSDictionary*)params;
+
+-(void)runAndNotify:(CBLiteNotify*)note;
+
+-(void)stop;
+
+@end;
+
 @interface CBLite : CDVPlugin
 
-@property NSMutableDictionary<NSString*, CBLiteView*> *liveQueries;
+@property NSMutableDictionary<NSString*, CBLiteLiveQuery*> *liveQueries;
+
+#pragma mark - Internal Notify helpers
 
 +(void)addNotify:(CBLiteNotify*)note;
 
@@ -79,7 +72,7 @@ forCallbackId:(NSString*)cid;
 
 - (void) openDatabase: (CDVInvokedUrlCommand*)command;
 
-#pragma mark - Database
+#pragma mark - Database handling
 
 - (void) closeDatabase: (CDVInvokedUrlCommand*)command;
 
@@ -87,10 +80,13 @@ forCallbackId:(NSString*)cid;
 
 - (void) compactDatabase: (CDVInvokedUrlCommand*)command;
 
+#pragma mark - Database info
 
 - (void) documentCount: (CDVInvokedUrlCommand*)command;
 
 - (void) lastSequenceNumber: (CDVInvokedUrlCommand*)command;
+
+#pragma mark - Replication
 
 - (void) replicate: (CDVInvokedUrlCommand*)command;
 
@@ -102,22 +98,26 @@ forCallbackId:(NSString*)cid;
 
 - (void) setViewFromAssets: (CDVInvokedUrlCommand*)command;
 
-#pragma mark - Query
-
-- (void) get: (CDVInvokedUrlCommand*)command;
-
-- (void) getAll: (CDVInvokedUrlCommand*)command;
-
 - (void) getFromView: (CDVInvokedUrlCommand*)command;
 
 - (void) stopLiveQuery: (CDVInvokedUrlCommand*)command;
-
-- (void) put: (CDVInvokedUrlCommand*)command;
 
 #pragma mark - Changes
 
 - (void) registerWatch: (CDVInvokedUrlCommand*)command;
 
 - (void) removeWatch: (CDVInvokedUrlCommand*)command;
+
+#pragma mark - CRUD
+
+- (void) add: (CDVInvokedUrlCommand*)command;
+
+- (void) get: (CDVInvokedUrlCommand*)command;
+
+- (void) update: (CDVInvokedUrlCommand*)command;
+
+- (void) remove: (CDVInvokedUrlCommand*)command;
+
+- (void) getAll: (CDVInvokedUrlCommand*)command;
 
 @end
