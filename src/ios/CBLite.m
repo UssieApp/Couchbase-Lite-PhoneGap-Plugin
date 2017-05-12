@@ -5,100 +5,229 @@
 
 #import <Cordova/CDV.h>
 
-// Just in case
-typedef NS_ENUM(NSInteger, CBLiteResponseCode) {
-    cblOK                     = 200,
-    cblCreated                = 201,
-    cblAccepted               = 202,
-
-    cblBadRequest             = 400,
-    cblRequiresAuthentication = 401,
-    cblForbidden              = 403,
-    cblNotFound               = 404,
-
-    cblException              = 500
-};
+static NSMutableDictionary<NSString*, CBLiteDatabase*> *databases;
 
 @implementation CBLite
-
-static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 - (void)pluginInitialize
 {
     CBLRegisterJSViewCompiler();
-    notifiers = [NSMutableDictionary dictionary];
-    self.liveQueries = [NSMutableDictionary dictionary];
+    databases = [NSMutableDictionary dictionary];
+}
+
+- (void)info:(CDVInvokedUrlCommand *)command
+{
+    @try {
+        CBLManager* m = [CBLManager sharedInstance];
+        
+        return [self result:command.callbackId
+                   withDict:@{
+                              @"version": @([CBLManager version]),
+                              @"directory": [m directory],
+                              @"databases": [m allDatabaseNames] }];
+    } @catch (NSException* exception) {
+        return [self result:command.callbackId fromException:exception];
+    }
+}
+
+- (void)openDatabase:(CDVInvokedUrlCommand*)command
+{
+    NSString* dbName = [command argumentAtIndex:0];
+    
+    BOOL create = [[command argumentAtIndex:1 withDefault:@NO] boolValue];
+    
+    @try {
+        CBLDatabaseOptions *option = [[CBLDatabaseOptions alloc] init];
+        option.create = create;
+        option.storageType = kCBLSQLiteStorage;
+        
+        NSError *error;
+        CBLDatabase *db = [[CBLManager sharedInstance] openDatabaseNamed:dbName
+                                                             withOptions:option
+                                                                   error:&error];
+        if (error) {
+            return [self result:command.callbackId fromError:error];
+        }
+        
+        databases[dbName] = [[CBLiteDatabase alloc] init:dbName withManager:self];
+        
+        NSLog(@"Opened database %@", [db name]);
+        
+        return [self resultOk:command.callbackId];
+    } @catch (NSException* exception) {
+        return [self result:command.callbackId fromException:exception];
+    }
+}
+
+-(void)closeDatabase:(CDVInvokedUrlCommand *)command
+{
+    NSString* dbName = [command argumentAtIndex:0];
+    [databases removeObjectForKey:dbName];
+    
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+                                                          to:^(CBLDatabase* db) {
+        @try {
+            NSError *error;
+            [db close:&error];
+            if (error) {
+                return [self result:command.callbackId fromError:error];
+            }
+        
+            return [self resultOk:command.callbackId];
+        } @catch (NSException* exception) {
+            return [self result:command.callbackId fromException:exception];
+        }
+    }];
+}
+
+-(void)deleteDatabase:(CDVInvokedUrlCommand *)command
+{
+    NSString* dbName = [command argumentAtIndex:0];
+    
+    [databases removeObjectForKey:dbName];
+    
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+                                                          to:^(CBLDatabase* db) {
+        @try {
+            
+            NSError *error;
+            [db deleteDatabase:&error];
+            if (error) {
+                return [self result:command.callbackId fromError:error];
+            }
+            
+            // TODO do we need to remove listeners here?
+            
+            return [self resultOk:command.callbackId];
+        } @catch (NSException* exception) {
+            return [self result:command.callbackId fromException:exception];
+        }
+    }];
+}
+
+-(void)onDatabase:(CDVInvokedUrlCommand *)command
+{
+    NSString* dbName = [command argumentAtIndex:0];
+    
+    CBLiteDatabase* db = databases[dbName];
+    if (!db) {
+        return [self result:command.callbackId
+                   withCode:cblForbidden
+                     reason:@"database_not_open"];
+    }
+    
+    NSString* action = [[command argumentAtIndex:1] stringByAppendingString:@":"];
+    SEL selector = NSSelectorFromString(action);
+    
+    if (![db respondsToSelector:selector]) {
+        return [self result:command.callbackId
+                   withCode:cblBadRequest
+                     reason:@"command_unknown"];
+    }
+    
+    NSLog(@"Running command %@ on db %@", action, dbName);
+
+    // Suppresses warning about selector. not sure this is the best solution
+    // but seems safe here
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+
+    [db performSelector:selector withObject:command];
+
+#pragma clang diagnostic pop
 }
 
 // Result shorthand
 
-+(CDVPluginResult*)resultFromError:(NSError*)e
+-(void)result:(NSString*)callbackId
+    fromError:(NSError*)e
 {
-    return [CDVPluginResult
-            resultWithStatus:CDVCommandStatus_ERROR
-            messageAsDictionary:@{
+     return [self.commandDelegate
+            sendPluginResult:[CDVPluginResult
+                              resultWithStatus:CDVCommandStatus_ERROR
+                              messageAsDictionary:@{
                                   @"code": [NSNumber numberWithInteger:e.code],
-                                  @"description": e.localizedFailureReason }];
+                                  @"description": e.localizedFailureReason }]
+            callbackId:callbackId];
 }
 
-+(CDVPluginResult*)resultFromException:(NSException*)e
+-(void)result:(NSString*)callbackId
+fromException:(NSException*)e
 {
-    return [CDVPluginResult
-            resultWithStatus:CDVCommandStatus_ERROR
-            messageAsDictionary:@{
+    return [self.commandDelegate
+            sendPluginResult:[CDVPluginResult
+                              resultWithStatus:CDVCommandStatus_ERROR
+                              messageAsDictionary:@{
                                   @"code": @500,
-                                  @"description": e.reason }];
+                                  @"description": e.reason }]
+            callbackId:callbackId];
 }
 
-+(CDVPluginResult*)resultWithCode:(CBLiteResponseCode)code reason:(NSString*)reason
+-(void)resultOk:(NSString*)callbackId
 {
-    return [CDVPluginResult
-            resultWithStatus:CDVCommandStatus_ERROR
-            messageAsDictionary:@{
-                                  @"code": [NSNumber numberWithInt:code],
-                                  @"description": reason }];
+    return [self.commandDelegate
+            sendPluginResult:[CDVPluginResult
+                              resultWithStatus:CDVCommandStatus_OK]
+            callbackId:callbackId];
 }
 
-+(CDVPluginResult*)resultOk
+-(void)result:(NSString*)callbackId
+     withCode:(CBLiteResponseCode)code
+       reason:(NSString*)reason
+      andKeep:(BOOL)keep
 {
-    return [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+    CDVPluginResult* out = [CDVPluginResult
+                            resultWithStatus:CDVCommandStatus_ERROR
+                            messageAsDictionary:@{
+                                @"code": @(code),
+                                @"description": reason }];
+    out.keepCallback = @(keep);
+    return [self.commandDelegate
+            sendPluginResult:out
+            callbackId:callbackId];
 }
 
-+(CDVPluginResult*)resultWithDictionary:(NSDictionary*)dict
+-(void)result:(NSString*)callbackId
+     withCode:(CBLiteResponseCode)code
+       reason:(NSString*)reason
 {
-    return [CDVPluginResult
-            resultWithStatus:CDVCommandStatus_OK
-            messageAsDictionary:dict];
+    return [self result:callbackId withCode:code reason:reason andKeep:NO];
 }
 
-+(CDVPluginResult*)resultWithRevision:(CBLSavedRevision*)rev
+-(void)result:(NSString*)callbackId
+     withDict:(NSDictionary*)dict
+      andKeep:(BOOL)keep
 {
-    return [CDVPluginResult
-            resultWithStatus:CDVCommandStatus_OK
-            messageAsDictionary:@{ @"_id": [[rev document] documentID],
-                                   @"_rev": [rev revisionID] }];
+    CDVPluginResult* out = [CDVPluginResult
+                            resultWithStatus:CDVCommandStatus_OK
+                            messageAsDictionary:dict];
+    out.keepCallback = @(keep);
+    return [self.commandDelegate
+            sendPluginResult:out
+            callbackId:callbackId];
 }
 
-+(void)addNotify:(CBLiteNotify*)note
+-(void)result:(NSString*)callbackId
+     withDict:(NSDictionary*)dict
 {
-    notifiers[note.callbackId] = note;
+    return [self result:callbackId withDict:dict andKeep:NO];
 }
 
-+(void)removeNotify:(NSString*)key
+-(void)result:(NSString*)callbackId
+ withRevision:(CBLSavedRevision*)rev
+      andKeep:(BOOL)keep
 {
-    [notifiers removeObjectForKey:key];
+    return [self result:callbackId
+               withDict:@{
+                          @"_id": [[rev document] documentID],
+                          @"_rev": [rev revisionID] }
+                andKeep:keep];
 }
 
-+(void)removeNotifiersFor:(NSString*)dbName
+-(void)result:(NSString*)callbackId
+ withRevision:(CBLSavedRevision*)rev
 {
-    NSArray* keys = [notifiers allKeys];
-    for (NSString* key in keys) {
-        CBLiteNotify* note = notifiers[key];
-        if (note && note.dbName == dbName) {
-            NSLog(@"removing key=%@ for db=%@", key, note.dbName);
-            [notifiers removeObjectForKey:key];
-        }
-    }
+    return [self result:callbackId withRevision:rev andKeep:NO];
 }
 
 // helpers
@@ -126,282 +255,78 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
     return data;
 }
 
+@end
 
-// public methods
+@implementation CBLiteDatabase
 
-- (void)info:(CDVInvokedUrlCommand *)command
+-(id)init:(NSString*)name withManager:(CBLite*)manager
 {
-    @try {
-        CBLManager* m = [CBLManager sharedInstance];
-    
-        NSDictionary* out = @{
-                              @"version": [NSNumber numberWithInteger:[CBLManager version]],
-                              @"directory": [m directory],
-                              @"databases": [m allDatabaseNames]
-                              };
-    
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultWithDictionary:out]
-         callbackId:command.callbackId];
-    } @catch (NSException* exception) {
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultFromException:exception]
-         callbackId:command.callbackId];
+    if (self = [super init]) {
+        self.name = name;
+        self.mgr = manager;
     }
+    return self;
 }
 
-- (void)openDatabase:(CDVInvokedUrlCommand*)command
+-(void)compact:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command argumentAtIndex:0];
-
-    BOOL create = [[command argumentAtIndex:1 withDefault:@NO] boolValue];
-
-    @try {
-        CBLDatabaseOptions *option = [[CBLDatabaseOptions alloc] init];
-        option.create = create;
-        option.storageType = kCBLSQLiteStorage;
-
-        NSError *error;
-        CBLDatabase *db = [[CBLManager sharedInstance] openDatabaseNamed:dbName
-                                                             withOptions:option
-                                                                   error:&error];
-
-        if (error) {
-            NSLog(@"ERROR: %@ [%ld: %@]", error, (long)error.code, error.localizedFailureReason);
-            return [self.commandDelegate
-                    sendPluginResult:[CBLite resultFromError:error]
-                    callbackId:command.callbackId];
-        }
-        NSLog(@"Opened database %@", [db name]);
-
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultOk]
-         callbackId:command.callbackId];
-    } @catch (NSException* exception) {
-        NSLog(@"EXCEPTION: %@ == %@ (%@)", exception, exception.description, exception.reason);
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultFromException:exception]
-         callbackId:command.callbackId];
-    }
-}
-
--(void)closeDatabase:(CDVInvokedUrlCommand *)command
-{
-    NSString* dbName = [command argumentAtIndex:0];
-    
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
-                                                          to:^(CBLDatabase* db) {
-        @try {
-    
-            NSError *error;
-            [db close:&error];
-            if (error) {
-                return [self.commandDelegate
-                        sendPluginResult:[CBLite resultFromError:error]
-                        callbackId:command.callbackId];
-            }
-            
-            // TODO do we need to remove listeners here?
-    
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultOk]
-             callbackId:command.callbackId];
-        } @catch (NSException* exception) {
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultFromException:exception]
-             callbackId:command.callbackId];
-        }
-    }];
-}
-
--(void)deleteDatabase:(CDVInvokedUrlCommand *)command
-{
-    NSString* dbName = [command argumentAtIndex:0];
-    
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
-                                                          to:^(CBLDatabase* db) {
-        @try {
-        
-            NSError *error;
-            [db deleteDatabase:&error];
-            if (error) {
-                return [self.commandDelegate
-                        sendPluginResult:[CBLite resultFromError:error]
-                        callbackId:command.callbackId];
-            }
-            
-            // TODO do we need to remove listeners here?
-    
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultOk]
-             callbackId:command.callbackId];
-        } @catch (NSException* exception) {
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultFromException:exception]
-             callbackId:command.callbackId];
-        }
-    }];
-}
-
--(void)compactDatabase:(CDVInvokedUrlCommand *)command
-{
-    NSString* dbName = [command argumentAtIndex:0];
-    
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
         @try {
     
             NSError *error;
             [db compact:&error];
             if (error) {
-                return [self.commandDelegate
-                        sendPluginResult:[CBLite resultFromError:error]
-                        callbackId:command.callbackId];
+                return [self.mgr result:command.callbackId fromError:error];
             }
-    
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultOk]
-             callbackId:command.callbackId];
+            
+            return [self.mgr resultOk:command.callbackId];
+            
         } @catch (NSException* exception) {
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultFromException:exception]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId fromException:exception];
         }
     }];
 }
 
 -(void)documentCount:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command argumentAtIndex:0];
-
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
         @try {
 
-            NSDictionary* out = @{@"count":[NSNumber numberWithUnsignedInteger:[db documentCount]]};
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultWithDictionary:out]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId
+                           withDict:@{ @"count": @([db documentCount]) }];
         } @catch (NSException* exception) {
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultFromException:exception]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId fromException:exception];
         }
     }];
 }
 
 -(void)lastSequenceNumber:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command argumentAtIndex:0];
-
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
         @try {
-
-            NSDictionary* out = @{@"last_seq":[NSNumber numberWithLongLong:[db lastSequenceNumber]]};
-
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultWithDictionary:out]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId
+                           withDict:@{ @"last_seq": @([db lastSequenceNumber]) }];
         } @catch (NSException* exception) {
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultFromException:exception]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId fromException:exception];
         }
     }];
 }
 
-// The NotificationCenter doesn't seem to work when on a background thread!
--(void)replicate:(CDVInvokedUrlCommand *)command
-{
-    NSString* dbName = [command argumentAtIndex:0];
-    
-    NSDictionary* opts = [command argumentAtIndex:1];
-    
-    @try {
-        NSError* error;
-        CBLDatabase *db = [[CBLManager sharedInstance] databaseNamed:dbName error:&error];
-        if (error) {
-            return [self.commandDelegate
-                    sendPluginResult:[CBLite resultFromError:error]
-                    callbackId:command.callbackId];
-        }
-        
-        NSString* from = opts[@"from"];
-        NSString* to = opts[@"to"];
-        
-        bool continuous = [opts[@"continuous"] boolValue];
-        
-        CBLReplication* repl;
-        if ([from length]) {
-            repl = [db createPullReplication:[NSURL URLWithString:from]];
-        } else {
-            repl = [db createPushReplication:[NSURL URLWithString:to]];
-        }
-        
-        NSDictionary* headers = opts[@"headers"];
-        if (headers != NULL) {
-            [repl setHeaders:headers];
-        }
-        
-        [repl setContinuous:continuous];
-        
-        CBLiteNotify* onSync = [[CBLiteNotify alloc]
-                                initOnDb:dbName
-                                withDelegate:self.commandDelegate
-                                forCallbackId:command.callbackId];
-
-        [[NSNotificationCenter defaultCenter] addObserver: onSync
-                                                 selector: @selector(onSync:)
-                                                     name: kCBLReplicationChangeNotification
-                                                   object: repl];
-        
-        [repl start];
-        
-        [CBLite addNotify:onSync];
-        
-        // TODO send first notification containing id
-        
-    } @catch (NSException* exception) {
-        NSLog(@"REPL ERROR: %@", exception);
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultFromException:exception]
-         callbackId:command.callbackId];
-    }
-}
-
--(void)stopReplication:(CDVInvokedUrlCommand *)command
-{
-    NSString* id = [command argumentAtIndex:1];
-    
-    // TODO send a "stopping replication" message?
-    
-    @try {
-        [CBLite removeNotify:id];
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultOk]
-         callbackId:command.callbackId];
-    } @catch (NSException* exception) {
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultFromException:exception]
-         callbackId:command.callbackId];
-    }
-    
-}
 
 -(void)addView:(CDVInvokedUrlCommand *)command
            map:(NSString*)map
         reduce:(NSString*)reduce
 {
-    NSString* dbName = [command argumentAtIndex:0];
+    NSString* name = [command argumentAtIndex:2];
 
-    NSString* name = [command argumentAtIndex:1];
-
-    NSString* version = [command argumentAtIndex:2];
+    NSString* version = [command argumentAtIndex:3];
     
-    NSDictionary* opts = [command argumentAtIndex:4];
+    NSDictionary* opts = [command argumentAtIndex:5];
     
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
         @try {
             CBLView* view = [db viewNamed:name];
@@ -429,31 +354,27 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
                           version:version];
             }
             
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultOk]
-             callbackId:command.callbackId];
+            return [self.mgr resultOk:command.callbackId];
         } @catch (NSException* exception) {
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultFromException:exception]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId fromException:exception];
         }
     }];
 }
 
 -(void)setView:(CDVInvokedUrlCommand *)command
 {
-    NSDictionary* data = [command argumentAtIndex:3];
+    NSDictionary* data = [command argumentAtIndex:4];
     
     [self addView:command map:data[@"map"] reduce:data[@"reduce"]];
 }
 
 -(void)setViewFromAssets:(CDVInvokedUrlCommand *)command
 {
-    NSString* viewName = [command argumentAtIndex:1];
+    NSString* viewName = [command argumentAtIndex:2];
     
-    NSString* path = [command argumentAtIndex:3];
+    NSString* path = [command argumentAtIndex:4];
     
-    NSString* root = [self.commandDelegate pathForResource:path];
+    NSString* root = [self.mgr.commandDelegate pathForResource:path];
     
     NSString* mapPath = [NSString stringWithFormat:@"%@/%@/map.js",
                          root, viewName];
@@ -462,42 +383,39 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
     @try {
         NSFileManager* fMgr = [[NSFileManager alloc] init];
-        NSString* map = [[NSString alloc] initWithData:[fMgr contentsAtPath:mapPath]
-                                              encoding:NSUTF8StringEncoding];
+        NSString* map = [[NSString alloc]
+                         initWithData:[fMgr contentsAtPath:mapPath]
+                         encoding:NSUTF8StringEncoding];
         
         NSString* reduce;
         if ([fMgr fileExistsAtPath:reducePath]) {
-            reduce = [[NSString alloc] initWithData:[fMgr contentsAtPath:reducePath]
-                                           encoding:NSUTF8StringEncoding];
+            reduce = [[NSString alloc]
+                      initWithData:[fMgr contentsAtPath:reducePath]
+                      encoding:NSUTF8StringEncoding];
         }
 
         [self addView:command map:map reduce:reduce];
         
     } @catch (NSException* exception) {
-        NSLog(@"%@", [exception callStackSymbols]);
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultFromException:exception]
-         callbackId:command.callbackId];
+        return [self.mgr result:command.callbackId fromException:exception];
     }
 }
 
 -(void)getFromView:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command argumentAtIndex:0];
+    NSString* viewName = [command argumentAtIndex:2];
 
-    NSString* viewName = [command argumentAtIndex:1];
+    NSDictionary* options = [command argumentAtIndex:3];
 
-    NSDictionary* options = [command argumentAtIndex:2];
-
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
 
         @try {
             CBLView* v = [db existingViewNamed:viewName];
             if (v == NULL) {
-                return [self.commandDelegate
-                        sendPluginResult:[CBLite resultWithCode:cblNotFound reason:@"view_not_found"]
-                        callbackId:command.callbackId];
+                return [self.mgr result:command.callbackId
+                               withCode:cblNotFound
+                                 reason:@"view_not_found"];
             }
 
             CBLiteQuery* q = [[CBLiteQuery alloc]
@@ -505,167 +423,42 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
                               withParams:options];
 
             if (!q.options[@"mapOnly"] && ![v reduceBlock]) {
-                return [self.commandDelegate
-                        sendPluginResult:[CBLite resultWithCode:cblBadRequest reason:@"reduce_not_defined"]
-                        callbackId:command.callbackId];
+                return [self.mgr result:command.callbackId
+                               withCode:cblBadRequest
+                                 reason:@"reduce_not_defined"];
             }
 
             NSError* error;
             NSDictionary* out = [q run:error];
             if (error) {
-                return [self.commandDelegate
-                        sendPluginResult:[CBLite resultFromError:error]
-                        callbackId:command.callbackId];
+                return [self.mgr result:command.callbackId fromError:error];
             }
 
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultWithDictionary:out]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId withDict:out];
         } @catch (NSException* exception) {
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultFromException:exception]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId fromException:exception];
         }
     }];
 }
 
--(void)liveQuery:(CDVInvokedUrlCommand *)command
-{
-    NSString* dbName = [command argumentAtIndex:0];
-    
-    NSString* viewName = [command argumentAtIndex:1];
-    
-    NSDictionary* options = [command argumentAtIndex:2];
-
-    NSError* error;
-    CBLDatabase *db = [[CBLManager sharedInstance]
-                       databaseNamed:dbName error:&error];
-    if (error) {
-        return [self.commandDelegate
-                sendPluginResult:[CBLite resultFromError:error]
-                callbackId:command.callbackId];
-    }
-    
-    CBLView* v = [db existingViewNamed:viewName];
-    if (v == NULL) {
-        return [self.commandDelegate
-                sendPluginResult:[CBLite resultWithCode:cblNotFound reason:@"view_not_found"]
-                callbackId:command.callbackId];
-    }
-    
-    CBLiteLiveQuery* q = [[CBLiteLiveQuery alloc]
-                          init:[v createQuery]
-                          withParams:options];
-    
-    if (!q.options[@"mapOnly"] && ![v reduceBlock]) {
-        return [self.commandDelegate
-                sendPluginResult:[CBLite resultWithCode:cblBadRequest reason:@"reduce_not_defined"]
-                callbackId:command.callbackId];
-    }
-
-    CBLiteNotify* onLive = [[CBLiteNotify alloc]
-                            initOnDb:dbName
-                            withDelegate:self.commandDelegate
-                            forCallbackId:command.callbackId];
-    
-    [onLive send:@{ @"query_id" : command.callbackId } andKeep:YES];
-    
-    self.liveQueries[command.callbackId] = q;
-
-    [q runAndNotify:onLive];
-}
-
--(void)stopLiveQuery:(CDVInvokedUrlCommand *)command
-{
-//    NSString* dbName = [command argumentAtIndex:0];
-
-    NSString* key = [command argumentAtIndex:1];
-
-    [self.liveQueries[key] stop];
-
-    [self.liveQueries removeObjectForKey:key];
-
-    [self.commandDelegate
-     sendPluginResult:[CBLite resultOk]
-     callbackId:command.callbackId];
-}
-
--(void)registerWatch:(CDVInvokedUrlCommand *)command
-{
-    NSString* dbName = [command argumentAtIndex:0];
-
-    @try {
-        NSError* error;
-        CBLDatabase *db = [[CBLManager sharedInstance] databaseNamed:dbName error:&error];
-        if (error) {
-            return [self.commandDelegate
-                    sendPluginResult:[CBLite resultFromError:error]
-                    callbackId:command.callbackId];
-        }
-
-        CBLiteNotify* onChange = [[CBLiteNotify alloc]
-                                  initOnDb:dbName
-                                  withDelegate:self.commandDelegate
-                                  forCallbackId:command.callbackId];
-
-        [onChange send:@{ @"watch_id" : command.callbackId } andKeep:YES];
-
-        [[NSNotificationCenter defaultCenter] addObserver: onChange
-                                                 selector: @selector(onChange:)
-                                                     name: kCBLDatabaseChangeNotification
-                                                   object: db];
-
-        [CBLite addNotify:onChange];
-
-    } @catch (NSException* exception) {
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultFromException:exception]
-         callbackId:command.callbackId];
-    }
-
-}
-
--(void)removeWatch:(CDVInvokedUrlCommand *)command
-{
-    NSString* id = [command argumentAtIndex:1];
-
-    // TODO send a "closing watch" message?
-
-    @try {
-        [CBLite removeNotify:id];
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultOk]
-         callbackId:command.callbackId];
-    } @catch (NSException* exception) {
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultFromException:exception]
-         callbackId:command.callbackId];
-    }
-
-}
-
 -(void)add:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command argumentAtIndex:0];
 
     NSDictionary* data;
     @try {
-        data = [CBLite docFromArguments:command atIndex:1];
+        data = [CBLite docFromArguments:command atIndex:2];
     } @catch (NSException* exception) {
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultFromException:exception]
-         callbackId:command.callbackId];
+        return [self.mgr result:command.callbackId fromException:exception];
     }
 
     // if no data, return an error
     if (!data) {
-        // FIXME utilize resultFrom logic for consistency
-        return [self.commandDelegate
-                sendPluginResult:[CBLite resultWithCode:cblBadRequest reason:@"data_missing"]
-                callbackId:command.callbackId];
+        return [self.mgr result:command.callbackId
+                       withCode:cblBadRequest
+                         reason:@"data_missing"];
     }
 
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
         @try {
             NSError* error;
@@ -681,109 +474,88 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
             CBLSavedRevision* rev = [doc putProperties:data error:&error];
             if (error) {
-                return [self.commandDelegate
-                        sendPluginResult:[CBLite resultFromError:error]
-                        callbackId:command.callbackId];
+                return [self.mgr result:command.callbackId fromError:error];
             }
 
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultWithRevision:rev]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId withRevision:rev];
         } @catch (NSException* exception) {
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultFromException:exception]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId fromException:exception];
         }
     }];
 }
 
 -(void)get:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command argumentAtIndex:0];
+    NSString* _id = [command argumentAtIndex:2];
     
-    NSString* _id = [command argumentAtIndex:1];
-    
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
         @try {
         
             CBLDocument* doc = [db existingDocumentWithID:_id];
         
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultWithDictionary:[doc properties]]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId
+                           withDict:[doc properties]];
         } @catch (NSException* exception) {
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultFromException:exception]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId fromException:exception];
         }
    }];
 }
 
 -(void)update:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command argumentAtIndex:0];
 
     NSDictionary* data;
     @try {
-        data = [CBLite docFromArguments:command atIndex:1];
+        data = [CBLite docFromArguments:command atIndex:2];
     } @catch (NSException* exception) {
-        [self.commandDelegate
-         sendPluginResult:[CBLite resultFromException:exception]
-         callbackId:command.callbackId];
+        return [self.mgr result:command.callbackId fromException:exception];
     }
 
     // if no data, return an error
     if (!data) {
         // FIXME utilize resultFrom logic for consistency
-        return [self.commandDelegate
-                sendPluginResult:[CBLite resultWithCode:cblBadRequest reason:@"data_missing"]
-                callbackId:command.callbackId];
+        return [self.mgr result:command.callbackId
+                       withCode:cblBadRequest
+                         reason:@"data_missing"];
     }
 
     NSString* _id = data[@"_id"];
     if (!_id) {
-        return [self.commandDelegate
-                sendPluginResult:[CBLite resultWithCode:cblBadRequest reason:@"id_required"]
-                callbackId:command.callbackId];
+        return [self.mgr result:command.callbackId
+                       withCode:cblBadRequest
+                         reason:@"id_required"];
     }
 
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
         @try {
             NSError* error;
             CBLDocument* doc = [db existingDocumentWithID:_id];
             if (!doc) {
-                return [self.commandDelegate
-                        sendPluginResult:[CBLite resultWithCode:cblNotFound reason:@"doc_not_found"]
-                        callbackId:command.callbackId];
+                return [self.mgr result:command.callbackId
+                               withCode:cblNotFound
+                                 reason:@"doc_not_found"];
             }
 
             CBLSavedRevision* rev = [doc putProperties:data error:&error];
             if (error) {
-                return [self.commandDelegate
-                        sendPluginResult:[CBLite resultFromError:error]
-                        callbackId:command.callbackId];
+                return [self.mgr result:command.callbackId fromError:error];
             }
 
-            [self.commandDelegate
-            sendPluginResult:[CBLite resultWithRevision:rev]
-            callbackId:command.callbackId];
-            } @catch (NSException* exception) {
-            [self.commandDelegate
-            sendPluginResult:[CBLite resultFromException:exception]
-            callbackId:command.callbackId];
-            }
+            return [self.mgr result:command.callbackId withRevision:rev];
+        } @catch (NSException* exception) {
+            return [self.mgr result:command.callbackId fromException:exception];
+        }
     }];
 }
 
 -(void)remove:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command argumentAtIndex:0];
     
-    NSString* _id = [command argumentAtIndex:1];
+    NSString* _id = [command argumentAtIndex:2];
     
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
         @try {
 
@@ -793,30 +565,23 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
                 NSError* error;
                 [doc deleteDocument:&error];
                 if (error) {
-                    return [self.commandDelegate
-                            sendPluginResult:[CBLite resultFromError:error]
-                            callbackId:command.callbackId];
+                    return [self.mgr result:command.callbackId fromError:error];
                 }
             }
 
-            return [self.commandDelegate
-                    sendPluginResult:[CBLite resultOk]
-                    callbackId:command.callbackId];
+            return [self.mgr resultOk:command.callbackId];
         } @catch (NSException* exception) {
-            return [self.commandDelegate
-                    sendPluginResult:[CBLite resultFromException:exception]
-                    callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId fromException:exception];
         }
   }];
 }
 
 -(void)getAll:(CDVInvokedUrlCommand *)command
 {
-    NSString* dbName = [command argumentAtIndex:0];
     
-    NSDictionary* options = [command argumentAtIndex:1];
+    NSDictionary* options = [command argumentAtIndex:2];
     
-    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:dbName
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
         @try {
             CBLiteQuery* q = [[CBLiteQuery alloc]
@@ -826,21 +591,181 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
             NSError* error;
             NSDictionary* out = [q run:error];
             if (error) {
-                return [self.commandDelegate
-                        sendPluginResult:[CBLite resultFromError:error]
-                        callbackId:command.callbackId];
+                return [self.mgr result:command.callbackId fromError:error];
             }
             
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultWithDictionary:out]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId withDict:out];
         } @catch (NSException* exception) {
-            NSLog(@"%@", [exception callStackSymbols]);
-            [self.commandDelegate
-             sendPluginResult:[CBLite resultFromException:exception]
-             callbackId:command.callbackId];
+            return [self.mgr result:command.callbackId fromException:exception];
         }
     }];
+}
+
+@end
+
+@implementation CBLiteDatabase(Notify)
+
+@dynamic notifiers;
+
+// The NotificationCenter doesn't seem to work when on a background thread!
+-(void)replicate:(CDVInvokedUrlCommand *)command
+{
+    NSDictionary* opts = [command argumentAtIndex:2];
+    
+    @try {
+        NSError* error;
+        CBLDatabase *db = [[CBLManager sharedInstance] databaseNamed:self.name
+                                                               error:&error];
+        if (error) {
+            return [self.mgr result:command.callbackId fromError:error];
+        }
+        
+        NSString* from = opts[@"from"];
+        NSString* to = opts[@"to"];
+        
+        bool continuous = [opts[@"continuous"] boolValue];
+        
+        CBLReplication* repl;
+        if ([from length]) {
+            repl = [db createPullReplication:[NSURL URLWithString:from]];
+        } else {
+            repl = [db createPushReplication:[NSURL URLWithString:to]];
+        }
+        
+        NSDictionary* headers = opts[@"headers"];
+        if (headers != NULL) {
+            [repl setHeaders:headers];
+        }
+        
+        [repl setContinuous:continuous];
+        
+        CBLiteNotify* onSync = [[CBLiteNotify alloc] initOn:self
+                                              forCallbackId:command.callbackId];
+        
+        [[NSNotificationCenter defaultCenter] addObserver: onSync
+                                                 selector: @selector(onSync:)
+                                                     name: kCBLReplicationChangeNotification
+                                                   object: repl];
+        
+        [repl start];
+        
+        self.notifiers[command.callbackId] = onSync;
+        
+        // TODO send first notification containing id
+        
+    } @catch (NSException* exception) {
+        return [self.mgr result:command.callbackId fromException:exception];
+    }
+}
+
+-(void)stopReplication:(CDVInvokedUrlCommand *)command
+{
+    NSString* key = [command argumentAtIndex:2];
+    
+    // TODO send a "stopping replication" message?
+    
+    @try {
+        [self.notifiers removeObjectForKey:key];
+        return [self.mgr resultOk:command.callbackId];
+    } @catch (NSException* exception) {
+        return [self.mgr result:command.callbackId fromException:exception];
+    }
+    
+}
+
+-(void)registerWatch:(CDVInvokedUrlCommand *)command
+{
+    
+    @try {
+        NSError* error;
+        CBLDatabase *db = [[CBLManager sharedInstance] databaseNamed:self.name error:&error];
+        if (error) {
+            return [self.mgr result:command.callbackId fromError:error];
+        }
+        
+        CBLiteNotify* onChange = [[CBLiteNotify alloc] initOn:self
+                                                forCallbackId:command.callbackId];
+        
+        [onChange send:@{ @"watch_id" : command.callbackId } andKeep:YES];
+        
+        [[NSNotificationCenter defaultCenter] addObserver: onChange
+                                                 selector: @selector(onChange:)
+                                                     name: kCBLDatabaseChangeNotification
+                                                   object: db];
+        
+        self.notifiers[command.callbackId] = onChange;
+        
+    } @catch (NSException* exception) {
+        return [self.mgr result:command.callbackId fromException:exception];
+    }
+    
+}
+
+-(void)removeWatch:(CDVInvokedUrlCommand *)command
+{
+    NSString* key = [command argumentAtIndex:2];
+    
+    [self.notifiers removeObjectForKey:key];
+    return [self.mgr resultOk:command.callbackId];
+}
+
+
+@end
+
+@implementation CBLiteDatabase(LiveQuery)
+
+@dynamic liveQueries;
+
+-(void)liveQuery:(CDVInvokedUrlCommand *)command
+{
+    NSString* viewName = [command argumentAtIndex:2];
+    
+    NSDictionary* options = [command argumentAtIndex:3];
+    
+    NSError* error;
+    CBLDatabase *db = [[CBLManager sharedInstance]
+                       databaseNamed:self.name error:&error];
+    if (error) {
+        return [self.mgr result:command.callbackId fromError:error];
+    }
+    
+    CBLView* v = [db existingViewNamed:viewName];
+    if (v == NULL) {
+        return [self.mgr result:command.callbackId
+                       withCode:cblNotFound
+                         reason:@"view_not_found"];
+    }
+    
+    CBLiteLiveQuery* q = [[CBLiteLiveQuery alloc]
+                          init:[v createQuery]
+                          withParams:options];
+    
+    if (!q.options[@"mapOnly"] && ![v reduceBlock]) {
+        return [self.mgr result:command.callbackId
+                       withCode:cblBadRequest
+                         reason:@"reduce_not_defined"];
+    }
+    
+    CBLiteNotify* onLive = [[CBLiteNotify alloc] initOn:self
+                                          forCallbackId:command.callbackId];
+    
+    [onLive send:@{ @"query_id" : command.callbackId } andKeep:YES];
+    
+    self.liveQueries[command.callbackId] = q;
+    
+    [q runAndNotify:onLive];
+}
+
+-(void)stopLiveQuery:(CDVInvokedUrlCommand *)command
+{
+    
+    NSString* key = [command argumentAtIndex:2];
+    
+    [self.liveQueries[key] stop];
+    
+    [self.liveQueries removeObjectForKey:key];
+    
+    return [self.mgr resultOk:command.callbackId];
 }
 
 @end
@@ -999,7 +924,7 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
         return;
     }
     
-    [self.notify send:[self results:self.live.rows] andKeep:YES];
+    return [self.notify send:[self results:self.live.rows] andKeep:YES];
 }
 
 
@@ -1012,28 +937,22 @@ static NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
 
 @implementation CBLiteNotify
 
--(id)initOnDb:(NSString*)db
- withDelegate:(id<CDVCommandDelegate>)del
-forCallbackId:(NSString *)cid
+-(id)initOn:(CBLiteDatabase*)db forCallbackId:(NSString *)callbackId
 {
     if (self = [super init]) {
-        self.dbName = db;
-        self.delegate = del;
-        self.callbackId = cid;
+        self.db = db;
+        self.callbackId = callbackId;
     }
     return self;
 }
 
--(void)send:(NSDictionary*)out andKeep:(Boolean)keep
+-(void)send:(NSDictionary*)out andKeep:(BOOL)keep
 {
-    CDVPluginResult* res = [CBLite resultWithDictionary:out];
-    
-    res.keepCallback = [NSNumber numberWithBool:keep];
-    
-    [self.delegate sendPluginResult:res callbackId:self.callbackId];
     if (!keep) {
-        [CBLite removeNotify:self.callbackId];
+        // clean me up, I'm done!
+        [self.db.notifiers removeObjectForKey:self.callbackId];
     }
+    return [self.db.mgr result:self.callbackId withDict:out andKeep:keep];
 }
 
 -(void)onChange:(NSNotification *)note
@@ -1062,7 +981,8 @@ forCallbackId:(NSString *)cid
                               };
         [converted addObject:out];
     }
-    [self send:@{ @"results" : converted, @"last_seq" : lastSeq } andKeep:YES];
+    
+    return [self send:@{ @"results": converted, @"last_seq": lastSeq } andKeep:YES];
 }
 
 -(void)onSync:(NSNotification *)note
@@ -1126,7 +1046,8 @@ forCallbackId:(NSString *)cid
             break;
     }
     
-    [self send:out andKeep:keep];
+    return [self send:out andKeep:keep];
 }
 
 @end
+

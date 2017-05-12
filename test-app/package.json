@@ -4,8 +4,8 @@
     "version": "0.0.1",
     "devDependencies": {},
     "dependencies": {
-        "cordova-couchbase-lite": "file://..",
-        "cordova-couchbase-lite-tests": "file://../tests",
+        "cordova-couchbase-lite": "file:///Users/toreilly/workspace/cordova-couchbase-lite",
+        "cordova-couchbase-lite-tests": "file:///Users/toreilly/workspace/cordova-couchbase-lite/tests",
         "cordova-ios": "^4.4.0",
         "cordova-plugin-test-framework": "^1.1.5",
         "cordova-plugin-whitelist": "1"
@@ -18,6 +18,7 @@
             "cordova-couchbase-lite-tests": {}
         },
         "platforms": [
+            "ios"
         ]
     }
 }

@@ -2,28 +2,139 @@
 #import "CBLDatabase.h"
 #import "CBLQuery.h"
 
+// Just in case
+typedef NS_ENUM(NSInteger, CBLiteResponseCode) {
+    cblOK                     = 200,
+    cblCreated                = 201,
+    cblAccepted               = 202,
+    
+    cblBadRequest             = 400,
+    cblRequiresAuthentication = 401,
+    cblForbidden              = 403,
+    cblNotFound               = 404,
+    
+    cblException              = 500
+};
+
+@interface CBLite : CDVPlugin
+
+#pragma mark - Manager
+
+- (void) info: (CDVInvokedUrlCommand*)command;
+
+- (void) onDatabase: (CDVInvokedUrlCommand*)command;
+
+- (void) openDatabase: (CDVInvokedUrlCommand*)command;
+
+- (void) closeDatabase: (CDVInvokedUrlCommand*)command;
+
+- (void) deleteDatabase: (CDVInvokedUrlCommand*)command;
+
+#pragma mark - Replies
+
+-(void)result:(NSString*)callbackId fromError:(NSError*)error;
+
+-(void)result:(NSString*)callbackId fromException:(NSException*)eexception;
+
+-(void)resultOk:(NSString*)callbackId;
+
+-(void)result:(NSString*)callbackId withCode:(CBLiteResponseCode)code reason:(NSString*)reason andKeep:(BOOL)keep;
+
+-(void)result:(NSString*)callbackId withCode:(CBLiteResponseCode)code reason:(NSString*)reason;
+
+-(void)result:(NSString*)callbackId withDict:(NSDictionary*)dict andKeep:(BOOL)keep;
+
+-(void)result:(NSString*)callbackId withDict:(NSDictionary*)dict;
+
+-(void)result:(NSString*)callbackId withRevision:(CBLSavedRevision*)rev andKeep:(BOOL)keep;
+
+-(void)result:(NSString*)callbackId withRevision:(CBLSavedRevision*)rev;
+
+#pragma mark - Helpers
+
++(NSDictionary*)docFromArguments:(CDVInvokedUrlCommand*)cmd atIndex:(int)index;
+
+@end
+
+@interface CBLiteDatabase : NSObject {
+    
+}
+
+@property NSString* name;
+
+@property CBLite* mgr;
+
+- (id) init:(NSString*)name withManager:(CBLite*)manager;
+
+- (void) compact: (CDVInvokedUrlCommand*)command;
+
+#pragma mark - Database info
+
+- (void) documentCount: (CDVInvokedUrlCommand*)command;
+
+- (void) lastSequenceNumber: (CDVInvokedUrlCommand*)command;
+
+#pragma mark - View
+
+- (void) setView: (CDVInvokedUrlCommand*)command;
+
+- (void) setViewFromAssets: (CDVInvokedUrlCommand*)command;
+
+- (void) getFromView: (CDVInvokedUrlCommand*)command;
+
+- (void) getAll: (CDVInvokedUrlCommand*)command;
+
+#pragma mark - CRUD
+
+- (void) add: (CDVInvokedUrlCommand*)command;
+
+- (void) get: (CDVInvokedUrlCommand*)command;
+
+- (void) update: (CDVInvokedUrlCommand*)command;
+
+- (void) remove: (CDVInvokedUrlCommand*)command;
+
+@end
+
 @interface CBLiteNotify : NSObject
 {
     
 }
 
-@property NSString* dbName;
-
-@property id<CDVCommandDelegate> delegate;
+@property CBLiteDatabase* db;
 
 @property NSString* callbackId;
 
--(id)initOnDb:(NSString*)db
- withDelegate:(id<CDVCommandDelegate>)del
-forCallbackId:(NSString*)cid;
+-(id)initOn:(CBLiteDatabase*)db forCallbackId:(NSString*)cid;
 
--(void)send:(NSDictionary*)dict andKeep:(Boolean)keep;
+-(void)send:(NSDictionary*)out andKeep:(BOOL)keep;
 
 -(void)onChange:(NSNotification*)note;
 
 -(void)onSync:(NSNotification*)note;
 
 @end
+
+#pragma mark - Require Notifications
+
+@interface CBLiteDatabase(Notify)
+
+@property NSMutableDictionary<NSString*, CBLiteNotify*> *notifiers;
+
+#pragma mark - Replication
+
+- (void) replicate: (CDVInvokedUrlCommand*)command;
+
+- (void) stopReplication:(CDVInvokedUrlCommand *)command;
+
+#pragma mark - Changes
+
+- (void) registerWatch: (CDVInvokedUrlCommand*)command;
+
+- (void) removeWatch: (CDVInvokedUrlCommand*)command;
+
+@end
+
 
 @interface CBLiteQuery : NSObject
 {
@@ -54,70 +165,15 @@ forCallbackId:(NSString*)cid;
 
 @end;
 
-@interface CBLite : CDVPlugin
+#pragma mark - Live Queries
+
+@interface CBLiteDatabase(LiveQuery)
 
 @property NSMutableDictionary<NSString*, CBLiteLiveQuery*> *liveQueries;
 
-#pragma mark - Internal Notify helpers
+-(void)liveQuery:(CDVInvokedUrlCommand *)command;
 
-+(void)addNotify:(CBLiteNotify*)note;
+-(void)stopLiveQuery:(CDVInvokedUrlCommand *)command;
 
-+(void)removeNotify:(NSString*)key;
-
-+(void)removeNotifiersFor:(NSString*)dbName;
-
-#pragma mark - Manager
-
-- (void) info: (CDVInvokedUrlCommand*)command;
-
-- (void) openDatabase: (CDVInvokedUrlCommand*)command;
-
-#pragma mark - Database handling
-
-- (void) closeDatabase: (CDVInvokedUrlCommand*)command;
-
-- (void) deleteDatabase: (CDVInvokedUrlCommand*)command;
-
-- (void) compactDatabase: (CDVInvokedUrlCommand*)command;
-
-#pragma mark - Database info
-
-- (void) documentCount: (CDVInvokedUrlCommand*)command;
-
-- (void) lastSequenceNumber: (CDVInvokedUrlCommand*)command;
-
-#pragma mark - Replication
-
-- (void) replicate: (CDVInvokedUrlCommand*)command;
-
-- (void) stopReplication:(CDVInvokedUrlCommand *)command;
-
-#pragma mark - View
-
-- (void) setView: (CDVInvokedUrlCommand*)command;
-
-- (void) setViewFromAssets: (CDVInvokedUrlCommand*)command;
-
-- (void) getFromView: (CDVInvokedUrlCommand*)command;
-
-- (void) stopLiveQuery: (CDVInvokedUrlCommand*)command;
-
-#pragma mark - Changes
-
-- (void) registerWatch: (CDVInvokedUrlCommand*)command;
-
-- (void) removeWatch: (CDVInvokedUrlCommand*)command;
-
-#pragma mark - CRUD
-
-- (void) add: (CDVInvokedUrlCommand*)command;
-
-- (void) get: (CDVInvokedUrlCommand*)command;
-
-- (void) update: (CDVInvokedUrlCommand*)command;
-
-- (void) remove: (CDVInvokedUrlCommand*)command;
-
-- (void) getAll: (CDVInvokedUrlCommand*)command;
 
 @end
