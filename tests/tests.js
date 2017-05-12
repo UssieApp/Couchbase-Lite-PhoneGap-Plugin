@@ -245,6 +245,17 @@ exports.defineAutoTests = function() {
             );
         });
 
+        it('should return nothing on unknown key', function(done) {
+            db.get(
+                function(res) {
+                    expect(res).not.toEqual(jasmine.anything());
+                    done();
+                },
+                function(res) { done.fail(JSON.stringify(res)); },
+                "no_a_real_record"
+            );
+        });
+
         it('should update a record', function(done) {
             var record = testDocs[1];
             db.get(
