@@ -23,6 +23,18 @@
         </config-file>
         <header-file src="src/ios/CBLite.h" />
         <source-file src="src/ios/CBLite.m" />
+        <header-file src="src/ios/CBLiteDatabase.h" />
+        <source-file src="src/ios/CBLiteDatabase.m" />
+        <header-file src="src/ios/CBLiteNotify.h" />
+        <source-file src="src/ios/CBLiteNotify.m" />
+        <header-file src="src/ios/CBLiteQuery.h" />
+        <source-file src="src/ios/CBLiteQuery.m" />
+        <header-file src="src/ios/CBLiteLiveQuery.h" />
+        <source-file src="src/ios/CBLiteLiveQuery.m" />
+        <header-file src="src/ios/CBLiteDatabase+Notify.h" />
+        <source-file src="src/ios/CBLiteDatabase+Notify.m" />
+        <header-file src="src/ios/CBLiteDatabase+LiveQuery.h" />
+        <source-file src="src/ios/CBLiteDatabase+LiveQuery.m" />
         <framework src="libsqlite3.dylib" />
         <framework src="libstdc++.dylib" />
         <framework src="libicucore.dylib" />

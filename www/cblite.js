@@ -19,81 +19,81 @@ module.exports = {
                 },
 
                 compactDatabase: function(onSuccess, onError) {
-                    cordova.exec(onSuccess, onError, "CBLite", "compactDatabase", [ name ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "compact" ]);
                 },
 
                 // Database Info
 
                 documentCount: function(onSuccess, onError) {
-                    cordova.exec(onSuccess, onError, "CBLite", "documentCount", [ name ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "documentCount" ]);
                 },
 
                 lastSequenceNumber: function(onSuccess, onError) {
-                    cordova.exec(onSuccess, onError, "CBLite", "lastSequenceNumber", [ name ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "lastSequenceNumber" ]);
                 },
 
                 // Replication
 
                 replicate: function(onSuccess, onError, params) {
-                    cordova.exec(onSuccess, onError, "CBLite", "replicate", [ name, params ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "replicate", params ]);
                 },
 
                 stopReplicate: function(onSuccess, onError, id) {
-                    cordova.exec(onSuccess, onError, "CBLite", "stopReplicate", [ name, id ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "stopReplicate", id ]);
                 },
 
                 // View
 
                 setView: function(onSuccess, onError, viewName, version, data, options) {
-                    cordova.exec(onSuccess, onError, "CBLite", "setView", [ name, viewName, version, data, options ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "setView", viewName, version, data, options ]);
                 },
 
                 setViewFromAssets: function(onSuccess, onError, viewName, version, path, options) {
-                    cordova.exec(onSuccess, onError, "CBLite", "setViewFromAssets", [ name, viewName, version, path, options ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "setViewFromAssets", viewName, version, path, options ]);
                 },
 
                 getFromView: function(onSuccess, onError, viewName, params) {
-                    cordova.exec(onSuccess, onError, "CBLite", "getFromView", [ name, viewName, params ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "getFromView", viewName, params ]);
                 },
 
                 getAll: function(onSuccess, onError, params) {
-                    cordova.exec(onSuccess, onError, "CBLite", "getAll", [ name, params ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "getAll", params ]);
                 },
 
                 liveQuery: function(onSuccess, onError, id) {
-                    cordova.exec(onSuccess, onError, "CBLite", "stopLiveQuery", [ name, id ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "liveQuery", id ]);
                 },
 
                 stopLiveQuery: function(onSuccess, onError, id) {
-                    cordova.exec(onSuccess, onError, "CBLite", "stopLiveQuery", [ name, id ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "stopLiveQuery", id ]);
                 },
 
                 // Changes
 
                 registerWatch: function(onSuccess, onError, event) {
-                    cordova.exec(onSuccess, onError, "CBLite", "registerWatch", [ name, event ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "watch", event ]);
                 },
 
                 removeWatch: function(onSuccess, onError, event) {
-                    cordova.exec(onSuccess, onError, "CBLite", "removeWatch", [ name, event ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "stopWatch", event ]);
                 },
 
                 // CRUD
 
                 add: function(onSuccess, onError, doc) {
-                    cordova.exec(onSuccess, onError, "CBLite", "add", [ name, doc ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "add", doc ]);
                 },
 
                 get: function(onSuccess, onError, id) {
-                    cordova.exec(onSuccess, onError, "CBLite", "get", [ name, id ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "get", id ]);
                 },
 
                 update: function(onSuccess, onError, doc) {
-                    cordova.exec(onSuccess, onError, "CBLite", "update", [ name, doc ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "update", doc ]);
                 },
 
                 remove: function(onSuccess, onError, id) {
-                    cordova.exec(onSuccess, onError, "CBLite", "remove", [ name, id ]);
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "remove", id ]);
                 }
 
                 // putLocalDocument

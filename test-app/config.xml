@@ -24,8 +24,8 @@
         <preference name="BackupWebStorage" value="none" />
     </platform>
     <engine name="ios" spec="^4.4.0" />
-    <plugin name="cordova-couchbase-lite" spec="file:///Users/toreilly/workspace/cordova-couchbase-lite" />
-    <plugin name="cordova-couchbase-lite-tests" spec="file:///Users/toreilly/workspace/cordova-couchbase-lite/tests" />
+    <plugin name="cordova-couchbase-lite" spec="file://.." />
+    <plugin name="cordova-couchbase-lite-tests" spec="file://../tests" />
     <plugin name="cordova-plugin-test-framework" spec="^1.1.5" />
     <plugin name="cordova-plugin-whitelist" spec="1" />
 </widget>
