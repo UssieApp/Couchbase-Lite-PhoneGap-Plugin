@@ -82,11 +82,11 @@ module.exports = {
 
                 // Changes
 
-                registerWatch: function(onSuccess, onError, event) {
-                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "watch", event ]);
+                watch: function(onSuccess, onError, event) {
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "watch" ]);
                 },
 
-                removeWatch: function(onSuccess, onError, event) {
+                stopWatch: function(onSuccess, onError, event) {
                     cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "stopWatch", event ]);
                 },
 

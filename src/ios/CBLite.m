@@ -22,13 +22,13 @@ static NSMutableDictionary<NSString*, CBLiteDatabase*> *databases;
     @try {
         CBLManager* m = [CBLManager sharedInstance];
         
-        return [self result:command.callbackId
+        return [self result:command
                    withDict:@{
                               @"version": @([CBLManager version]),
                               @"directory": [m directory],
                               @"databases": [m allDatabaseNames] }];
     } @catch (NSException* exception) {
-        return [self result:command.callbackId fromException:exception];
+        return [self result:command fromException:exception];
     }
 }
 
@@ -48,16 +48,16 @@ static NSMutableDictionary<NSString*, CBLiteDatabase*> *databases;
                                                              withOptions:option
                                                                    error:&error];
         if (error) {
-            return [self result:command.callbackId fromError:error];
+            return [self result:command fromError:error];
         }
         
         databases[dbName] = [[CBLiteDatabase alloc] init:dbName withManager:self];
         
         NSLog(@"Opened database %@", [db name]);
         
-        return [self resultOk:command.callbackId];
+        return [self resultOk:command];
     } @catch (NSException* exception) {
-        return [self result:command.callbackId fromException:exception];
+        return [self result:command fromException:exception];
     }
 }
 
@@ -72,12 +72,12 @@ static NSMutableDictionary<NSString*, CBLiteDatabase*> *databases;
             NSError *error;
             [db close:&error];
             if (error) {
-                return [self result:command.callbackId fromError:error];
+                return [self result:command fromError:error];
             }
         
-            return [self resultOk:command.callbackId];
+            return [self resultOk:command];
         } @catch (NSException* exception) {
-            return [self result:command.callbackId fromException:exception];
+            return [self result:command fromException:exception];
         }
     }];
 }
@@ -95,53 +95,62 @@ static NSMutableDictionary<NSString*, CBLiteDatabase*> *databases;
             NSError *error;
             [db deleteDatabase:&error];
             if (error) {
-                return [self result:command.callbackId fromError:error];
+                return [self result:command fromError:error];
             }
             
             // TODO do we need to remove listeners here?
             
-            return [self resultOk:command.callbackId];
+            return [self resultOk:command];
         } @catch (NSException* exception) {
-            return [self result:command.callbackId fromException:exception];
+            return [self result:command fromException:exception];
         }
     }];
+}
+
+-(void)onDatabase:(CDVInvokedUrlCommand*)command
+            named:(NSString*)name
+           action:(NSString*)action
+{
+    CBLiteDatabase* db = databases[name];
+    if (!db) {
+        return [self result:command
+                   withCode:cblForbidden
+                     reason:@"database_not_open"];
+    }
+    
+    SEL selector = NSSelectorFromString([action stringByAppendingString:@":"]);
+    
+    if (![db respondsToSelector:selector]) {
+        return [self result:command
+                   withCode:cblBadRequest
+                     reason:@"command_unknown"];
+    }
+    
+    NSLog(@"Running command %@ on db %@", action, name);
+    
+    // Suppresses warning about selector. not sure this is the best solution
+    // but seems safe here
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    
+    [db performSelector:selector withObject:command];
+    
+#pragma clang diagnostic pop
+    
 }
 
 -(void)onDatabase:(CDVInvokedUrlCommand *)command
 {
     NSString* dbName = [command argumentAtIndex:0];
+    NSString* action = [command argumentAtIndex:1];
     
-    CBLiteDatabase* db = databases[dbName];
-    if (!db) {
-        return [self result:command.callbackId
-                   withCode:cblForbidden
-                     reason:@"database_not_open"];
-    }
+    return [self onDatabase:command named:dbName action:action];
     
-    NSString* action = [[command argumentAtIndex:1] stringByAppendingString:@":"];
-    SEL selector = NSSelectorFromString(action);
-    
-    if (![db respondsToSelector:selector]) {
-        return [self result:command.callbackId
-                   withCode:cblBadRequest
-                     reason:@"command_unknown"];
-    }
-    
-    NSLog(@"Running command %@ on db %@", action, dbName);
-
-    // Suppresses warning about selector. not sure this is the best solution
-    // but seems safe here
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-
-    [db performSelector:selector withObject:command];
-
-#pragma clang diagnostic pop
 }
 
 // Result shorthand
 
--(void)result:(NSString*)callbackId
+-(void)result:(CDVInvokedUrlCommand*)command
     fromError:(NSError*)e
 {
      return [self.commandDelegate
@@ -150,30 +159,31 @@ static NSMutableDictionary<NSString*, CBLiteDatabase*> *databases;
                               messageAsDictionary:@{
                                   @"code": [NSNumber numberWithInteger:e.code],
                                   @"description": e.localizedFailureReason }]
-            callbackId:callbackId];
+            callbackId:command.callbackId];
 }
 
--(void)result:(NSString*)callbackId
+-(void)result:(CDVInvokedUrlCommand*)command
 fromException:(NSException*)e
 {
+    NSLog(@"EXCEPTION: %@", [e callStackSymbols]);
     return [self.commandDelegate
             sendPluginResult:[CDVPluginResult
                               resultWithStatus:CDVCommandStatus_ERROR
                               messageAsDictionary:@{
                                   @"code": @500,
                                   @"description": e.reason }]
-            callbackId:callbackId];
+            callbackId:command.callbackId];
 }
 
--(void)resultOk:(NSString*)callbackId
+-(void)resultOk:(CDVInvokedUrlCommand*)command
 {
     return [self.commandDelegate
             sendPluginResult:[CDVPluginResult
                               resultWithStatus:CDVCommandStatus_OK]
-            callbackId:callbackId];
+            callbackId:command.callbackId];
 }
 
--(void)result:(NSString*)callbackId
+-(void)result:(CDVInvokedUrlCommand*)command
      withCode:(CBLiteResponseCode)code
        reason:(NSString*)reason
       andKeep:(BOOL)keep
@@ -186,17 +196,17 @@ fromException:(NSException*)e
     out.keepCallback = @(keep);
     return [self.commandDelegate
             sendPluginResult:out
-            callbackId:callbackId];
+            callbackId:command.callbackId];
 }
 
--(void)result:(NSString*)callbackId
+-(void)result:(CDVInvokedUrlCommand*)command
      withCode:(CBLiteResponseCode)code
        reason:(NSString*)reason
 {
-    return [self result:callbackId withCode:code reason:reason andKeep:NO];
+    return [self result:command withCode:code reason:reason andKeep:NO];
 }
 
--(void)result:(NSString*)callbackId
+-(void)result:(CDVInvokedUrlCommand*)command
      withDict:(NSDictionary*)dict
       andKeep:(BOOL)keep
 {
@@ -206,30 +216,30 @@ fromException:(NSException*)e
     out.keepCallback = @(keep);
     return [self.commandDelegate
             sendPluginResult:out
-            callbackId:callbackId];
+            callbackId:command.callbackId];
 }
 
--(void)result:(NSString*)callbackId
+-(void)result:(CDVInvokedUrlCommand*)command
      withDict:(NSDictionary*)dict
 {
-    return [self result:callbackId withDict:dict andKeep:NO];
+    return [self result:command withDict:dict andKeep:NO];
 }
 
--(void)result:(NSString*)callbackId
+-(void)result:(CDVInvokedUrlCommand*)command
  withRevision:(CBLSavedRevision*)rev
       andKeep:(BOOL)keep
 {
-    return [self result:callbackId
+    return [self result:command
                withDict:@{
                           @"_id": [[rev document] documentID],
                           @"_rev": [rev revisionID] }
                 andKeep:keep];
 }
 
--(void)result:(NSString*)callbackId
+-(void)result:(CDVInvokedUrlCommand*)command
  withRevision:(CBLSavedRevision*)rev
 {
-    return [self result:callbackId withRevision:rev andKeep:NO];
+    return [self result:command withRevision:rev andKeep:NO];
 }
 
 // helpers

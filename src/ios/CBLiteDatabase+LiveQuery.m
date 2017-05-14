@@ -18,12 +18,12 @@
     CBLDatabase *db = [[CBLManager sharedInstance]
                        databaseNamed:self.name error:&error];
     if (error) {
-        return [self.mgr result:command.callbackId fromError:error];
+        return [self.mgr result:command fromError:error];
     }
 
     CBLView* v = [db existingViewNamed:viewName];
     if (v == NULL) {
-        return [self.mgr result:command.callbackId
+        return [self.mgr result:command
                        withCode:cblNotFound
                          reason:@"view_not_found"];
     }
@@ -33,15 +33,17 @@
                           withParams:options];
 
     if (!q.options[@"mapOnly"] && ![v reduceBlock]) {
-        return [self.mgr result:command.callbackId
+        return [self.mgr result:command
                        withCode:cblBadRequest
                          reason:@"reduce_not_defined"];
     }
 
-    CBLiteNotify* onLive = [[CBLiteNotify alloc] initOn:self
-                                          forCallbackId:command.callbackId];
+    CBLiteNotify* onLive = [[CBLiteNotify alloc] initOn:self.mgr
+                                         command:command];
 
-    [onLive send:@{ @"query_id" : command.callbackId } andKeep:YES];
+    [onLive.mgr result:command
+              withDict:@{ @"query_id" : command.callbackId }
+               andKeep:YES];
 
     self.liveQueries[command.callbackId] = q;
 
@@ -57,7 +59,7 @@
 
     [self.liveQueries removeObjectForKey:key];
 
-    return [self.mgr resultOk:command.callbackId];
+    return [self.mgr resultOk:command];
 }
 
 @end

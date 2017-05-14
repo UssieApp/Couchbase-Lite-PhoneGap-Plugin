@@ -467,6 +467,30 @@ exports.defineAutoTests = function() {
         });
     });
 
+    describe('using a changes listener', function() {
+
+        var watchId;
+
+        var watch = {
+            result: function(res) {
+                expect(res).toEqual({ watch_id: jasmine.any(String) });
+            }
+        };
+
+        spyOn(watched, 'result').and.callThrough();
+
+        it('should register a watch', function(done) {
+            db.watch(
+                function(res) {
+                    watch.result(res);
+                    done();
+                },
+                function(res) { done.fail(JSON.stringify(res)); }
+            );
+        });
+
+    });
+
   });
 
 };
@@ -477,9 +501,13 @@ compactDatabase
 replicate
 stopReplicate
 
+watch
+stopWatch
+
 setView
 setViewFromAssets
 getFromView
+liveQuery
 stopLiveQuery
 getAll
 

@@ -26,7 +26,9 @@
         return;
     }
 
-    return [self.notify send:[self results:self.live.rows] andKeep:YES];
+    return [self.notify.mgr result:self.notify.command
+                          withDict:[self results:self.live.rows]
+                           andKeep:YES];
 }
 
 

@@ -1,24 +1,24 @@
 {
-    "name": "CBLiteTests",
-    "description": "Tests for running CBLite",
-    "version": "0.0.1",
-    "devDependencies": {},
-    "dependencies": {
-        "cordova-couchbase-lite": "file://..",
-        "cordova-couchbase-lite-tests": "file://../tests",
-        "cordova-ios": "^4.4.0",
-        "cordova-plugin-test-framework": "^1.1.5",
-        "cordova-plugin-whitelist": "1"
+  "name": "CBLiteTests",
+  "description": "Tests for running CBLite",
+  "version": "0.0.1",
+  "devDependencies": {},
+  "dependencies": {
+    "cordova-couchbase-lite": "file://..",
+    "cordova-couchbase-lite-tests": "file://.../tests",
+    "cordova-ios": "^4.4.0",
+    "cordova-plugin-test-framework": "^1.1.5",
+    "cordova-plugin-whitelist": "1"
+  },
+  "cordova": {
+    "plugins": {
+      "cordova-plugin-whitelist": {},
+      "cordova-plugin-test-framework": {},
+      "cordova-couchbase-lite": {},
+      "cordova-couchbase-lite-tests": {}
     },
-    "cordova": {
-        "plugins": {
-            "cordova-plugin-whitelist": {},
-            "cordova-plugin-test-framework": {},
-            "cordova-couchbase-lite": {},
-            "cordova-couchbase-lite-tests": {}
-        },
-        "platforms": [
-            "ios"
-        ]
-    }
+    "platforms": [
+      "ios"
+    ]
+  }
 }

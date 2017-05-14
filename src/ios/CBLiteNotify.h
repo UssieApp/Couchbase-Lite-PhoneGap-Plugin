@@ -1,20 +1,18 @@
 #ifndef CORDOVA_CBLITE_NOTIFY_H
 #define CORDOVA_CBLITE_NOTIFY_H
 
-#import "CBLiteDatabase.h"
+#import "CBLite.h"
 
 @interface CBLiteNotify : NSObject
 {
 
 }
 
-@property CBLiteDatabase* db;
+@property CBLite* mgr;
 
-@property NSString* callbackId;
+@property CDVInvokedUrlCommand* command;
 
--(id)initOn:(CBLiteDatabase*)db forCallbackId:(NSString*)cid;
-
--(void)send:(NSDictionary*)out andKeep:(BOOL)keep;
+-(id)initOn:(CBLite*)manager command:(CDVInvokedUrlCommand*)command;
 
 -(void)onChange:(NSNotification*)note;
 

@@ -4,6 +4,8 @@
 #import "CBLManager.h"
 #import "CBLView.h"
 #import "CBLDocument.h"
+#import "CBLReplication.h"
+
 
 @implementation CBLiteDatabase
 
@@ -12,6 +14,7 @@
     if (self = [super init]) {
         self.name = name;
         self.mgr = manager;
+        self.notifiers = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -25,13 +28,13 @@
             NSError *error;
             [db compact:&error];
             if (error) {
-                return [self.mgr result:command.callbackId fromError:error];
+                return [self.mgr result:command fromError:error];
             }
 
-            return [self.mgr resultOk:command.callbackId];
+            return [self.mgr resultOk:command];
 
         } @catch (NSException* exception) {
-            return [self.mgr result:command.callbackId fromException:exception];
+            return [self.mgr result:command fromException:exception];
         }
     }];
 }
@@ -42,10 +45,10 @@
                                                           to:^(CBLDatabase* db) {
         @try {
 
-            return [self.mgr result:command.callbackId
+            return [self.mgr result:command
                            withDict:@{ @"count": @([db documentCount]) }];
         } @catch (NSException* exception) {
-            return [self.mgr result:command.callbackId fromException:exception];
+            return [self.mgr result:command fromException:exception];
         }
     }];
 }
@@ -55,10 +58,10 @@
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
         @try {
-            return [self.mgr result:command.callbackId
+            return [self.mgr result:command
                            withDict:@{ @"last_seq": @([db lastSequenceNumber]) }];
         } @catch (NSException* exception) {
-            return [self.mgr result:command.callbackId fromException:exception];
+            return [self.mgr result:command fromException:exception];
         }
     }];
 }
@@ -102,9 +105,9 @@
                           version:version];
             }
 
-            return [self.mgr resultOk:command.callbackId];
+            return [self.mgr resultOk:command];
         } @catch (NSException* exception) {
-            return [self.mgr result:command.callbackId fromException:exception];
+            return [self.mgr result:command fromException:exception];
         }
     }];
 }
@@ -145,7 +148,7 @@
         [self addView:command map:map reduce:reduce];
 
     } @catch (NSException* exception) {
-        return [self.mgr result:command.callbackId fromException:exception];
+        return [self.mgr result:command fromException:exception];
     }
 }
 
@@ -161,7 +164,7 @@
         @try {
             CBLView* v = [db existingViewNamed:viewName];
             if (v == NULL) {
-                return [self.mgr result:command.callbackId
+                return [self.mgr result:command
                                withCode:cblNotFound
                                  reason:@"view_not_found"];
             }
@@ -171,7 +174,7 @@
                               withParams:options];
 
             if (!q.options[@"mapOnly"] && ![v reduceBlock]) {
-                return [self.mgr result:command.callbackId
+                return [self.mgr result:command
                                withCode:cblBadRequest
                                  reason:@"reduce_not_defined"];
             }
@@ -179,12 +182,12 @@
             NSError* error;
             NSDictionary* out = [q run:error];
             if (error) {
-                return [self.mgr result:command.callbackId fromError:error];
+                return [self.mgr result:command fromError:error];
             }
 
-            return [self.mgr result:command.callbackId withDict:out];
+            return [self.mgr result:command withDict:out];
         } @catch (NSException* exception) {
-            return [self.mgr result:command.callbackId fromException:exception];
+            return [self.mgr result:command fromException:exception];
         }
     }];
 }
@@ -196,12 +199,12 @@
     @try {
         data = [CBLite docFromArguments:command atIndex:2];
     } @catch (NSException* exception) {
-        return [self.mgr result:command.callbackId fromException:exception];
+        return [self.mgr result:command fromException:exception];
     }
 
     // if no data, return an error
     if (!data) {
-        return [self.mgr result:command.callbackId
+        return [self.mgr result:command
                        withCode:cblBadRequest
                          reason:@"data_missing"];
     }
@@ -222,12 +225,12 @@
 
             CBLSavedRevision* rev = [doc putProperties:data error:&error];
             if (error) {
-                return [self.mgr result:command.callbackId fromError:error];
+                return [self.mgr result:command fromError:error];
             }
 
-            return [self.mgr result:command.callbackId withRevision:rev];
+            return [self.mgr result:command withRevision:rev];
         } @catch (NSException* exception) {
-            return [self.mgr result:command.callbackId fromException:exception];
+            return [self.mgr result:command fromException:exception];
         }
     }];
 }
@@ -242,10 +245,10 @@
 
             CBLDocument* doc = [db existingDocumentWithID:_id];
 
-            return [self.mgr result:command.callbackId
+            return [self.mgr result:command
                            withDict:[doc properties]];
         } @catch (NSException* exception) {
-            return [self.mgr result:command.callbackId fromException:exception];
+            return [self.mgr result:command fromException:exception];
         }
    }];
 }
@@ -257,20 +260,20 @@
     @try {
         data = [CBLite docFromArguments:command atIndex:2];
     } @catch (NSException* exception) {
-        return [self.mgr result:command.callbackId fromException:exception];
+        return [self.mgr result:command fromException:exception];
     }
 
     // if no data, return an error
     if (!data) {
         // FIXME utilize resultFrom logic for consistency
-        return [self.mgr result:command.callbackId
+        return [self.mgr result:command
                        withCode:cblBadRequest
                          reason:@"data_missing"];
     }
 
     NSString* _id = data[@"_id"];
     if (!_id) {
-        return [self.mgr result:command.callbackId
+        return [self.mgr result:command
                        withCode:cblBadRequest
                          reason:@"id_required"];
     }
@@ -281,19 +284,19 @@
             NSError* error;
             CBLDocument* doc = [db existingDocumentWithID:_id];
             if (!doc) {
-                return [self.mgr result:command.callbackId
+                return [self.mgr result:command
                                withCode:cblNotFound
                                  reason:@"doc_not_found"];
             }
 
             CBLSavedRevision* rev = [doc putProperties:data error:&error];
             if (error) {
-                return [self.mgr result:command.callbackId fromError:error];
+                return [self.mgr result:command fromError:error];
             }
 
-            return [self.mgr result:command.callbackId withRevision:rev];
+            return [self.mgr result:command withRevision:rev];
         } @catch (NSException* exception) {
-            return [self.mgr result:command.callbackId fromException:exception];
+            return [self.mgr result:command fromException:exception];
         }
     }];
 }
@@ -313,13 +316,13 @@
                 NSError* error;
                 [doc deleteDocument:&error];
                 if (error) {
-                    return [self.mgr result:command.callbackId fromError:error];
+                    return [self.mgr result:command fromError:error];
                 }
             }
 
-            return [self.mgr resultOk:command.callbackId];
+            return [self.mgr resultOk:command];
         } @catch (NSException* exception) {
-            return [self.mgr result:command.callbackId fromException:exception];
+            return [self.mgr result:command fromException:exception];
         }
   }];
 }
@@ -339,14 +342,120 @@
             NSError* error;
             NSDictionary* out = [q run:error];
             if (error) {
-                return [self.mgr result:command.callbackId fromError:error];
+                return [self.mgr result:command fromError:error];
             }
 
-            return [self.mgr result:command.callbackId withDict:out];
+            return [self.mgr result:command withDict:out];
         } @catch (NSException* exception) {
-            return [self.mgr result:command.callbackId fromException:exception];
+            return [self.mgr result:command fromException:exception];
         }
     }];
+}
+
+// events
+
+// The NotificationCenter doesn't seem to work when on a background thread!
+-(void)replicate:(CDVInvokedUrlCommand *)command
+{
+    NSDictionary* opts = [command argumentAtIndex:2];
+    
+    @try {
+        NSError* error;
+        CBLDatabase *db = [[CBLManager sharedInstance] databaseNamed:self.name
+                                                               error:&error];
+        if (error) {
+            return [self.mgr result:command fromError:error];
+        }
+        
+        NSString* from = opts[@"from"];
+        NSString* to = opts[@"to"];
+        
+        bool continuous = [opts[@"continuous"] boolValue];
+        
+        CBLReplication* repl;
+        if ([from length]) {
+            repl = [db createPullReplication:[NSURL URLWithString:from]];
+        } else {
+            repl = [db createPushReplication:[NSURL URLWithString:to]];
+        }
+        
+        NSDictionary* headers = opts[@"headers"];
+        if (headers != NULL) {
+            [repl setHeaders:headers];
+        }
+        
+        [repl setContinuous:continuous];
+        
+        CBLiteNotify* onSync = [[CBLiteNotify alloc] initOn:self.mgr
+                                                    command:command];
+        
+        [[NSNotificationCenter defaultCenter] addObserver: onSync
+                                                 selector: @selector(onSync:)
+                                                     name: kCBLReplicationChangeNotification
+                                                   object: repl];
+        
+        [repl start];
+        
+        self.notifiers[command.callbackId] = onSync;
+        
+        // TODO send first notification containing id
+        
+    } @catch (NSException* exception) {
+        return [self.mgr result:command fromException:exception];
+    }
+}
+
+-(void)stopReplicate:(CDVInvokedUrlCommand *)command
+{
+    NSString* key = [command argumentAtIndex:2];
+    
+    // TODO send a "stopping replication" message?
+    
+    @try {
+        [self.notifiers removeObjectForKey:key];
+        return [self.mgr resultOk:command];
+    } @catch (NSException* exception) {
+        return [self.mgr result:command fromException:exception];
+    }
+    
+}
+
+-(void)watch:(CDVInvokedUrlCommand *)command
+{
+    
+    @try {
+        NSError* error;
+        CBLDatabase *db = [[CBLManager sharedInstance] databaseNamed:self.name error:&error];
+        if (error) {
+            return [self.mgr result:command fromError:error];
+        }
+        
+        CBLiteNotify* onChange = [[CBLiteNotify alloc] initOn:self.mgr
+                                                      command:command];
+        
+        [onChange.mgr result:onChange.command
+                      withDict:@{ @"watch_id" : command.callbackId }
+                     andKeep:YES];
+        
+        [[NSNotificationCenter defaultCenter] addObserver: onChange
+                                                 selector: @selector(onChange:)
+                                                     name: kCBLDatabaseChangeNotification
+                                                   object: db];
+        
+        self.notifiers[command.callbackId] = onChange;
+        
+    } @catch (NSException* exception) {
+        return [self.mgr result:command fromException:exception];
+    }
+    
+}
+
+-(void)stopWatch:(CDVInvokedUrlCommand *)command
+{
+    NSString* key = [command argumentAtIndex:2];
+    
+    [self.notifiers removeObjectForKey:key];
+    return [self.mgr resultOk:command];
 }
 
 @end

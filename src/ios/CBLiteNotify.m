@@ -1,6 +1,5 @@
 #import "CBLiteNotify.h"
 #import "CBLiteDatabase.h"
-#import "CBLiteDatabase+Notify.h"
 
 #import "CBLDatabase.h"
 #import "CBLDatabaseChange.h"
@@ -9,22 +8,13 @@
 
 @implementation CBLiteNotify
 
--(id)initOn:(CBLiteDatabase*)db forCallbackId:(NSString *)callbackId
+-(id)initOn:(CBLite*)manager command:(CDVInvokedUrlCommand*)command
 {
     if (self = [super init]) {
-        self.db = db;
-        self.callbackId = callbackId;
+        self.mgr = manager;
+        self.command = command;
     }
     return self;
-}
-
--(void)send:(NSDictionary*)out andKeep:(BOOL)keep
-{
-    if (!keep) {
-        // clean me up, I'm done!
-        [self.db.notifiers removeObjectForKey:self.callbackId];
-    }
-    return [self.db.mgr result:self.callbackId withDict:out andKeep:keep];
 }
 
 -(void)onChange:(NSNotification *)note
@@ -54,28 +44,30 @@
         [converted addObject:out];
     }
 
-    return [self send:@{ @"results": converted, @"last_seq": lastSeq } andKeep:YES];
+    return [self.mgr result:self.command
+                   withDict:@{ @"results": converted, @"last_seq": lastSeq }
+                    andKeep:YES];
 }
 
 -(void)onSync:(NSNotification *)note
 {
     CBLReplication *r = note.object;
+    
+    NSString* callbackId = self.command.callbackId;
 
     NSMutableDictionary* out = [NSMutableDictionary dictionary];
 
-    out[@"replcationId"] = self.callbackId;
+    out[@"replication_id"] = callbackId;
     out[@"status"] = [NSNumber numberWithInt:r.status];
 
     if (r.lastError) {
-        out[@"lastError"] = r.lastError;
+        out[@"last_error"] = r.lastError;
     }
-
-    Boolean keep = YES;
 
     switch (r.status) {
         case kCBLReplicationIdle:
             NSLog(@"%@: REPL IDLE: %d of %d [%@] %@ %@",
-                  self.callbackId,
+                  callbackId,
                   r.completedChangesCount,
                   r.changesCount,
                   r.pendingDocumentIDs,
@@ -84,7 +76,7 @@
             break;
         case kCBLReplicationActive:
             NSLog(@"%@: REPL ACTIVE: %d of %d [%@] %@ %@",
-                  self.callbackId,
+                  callbackId,
                   r.completedChangesCount,
                   r.changesCount,
                   r.pendingDocumentIDs,
@@ -98,7 +90,7 @@
             break;
         case kCBLReplicationOffline:
             NSLog(@"%@: REPL OFFLINE: %d of %d [%@] %@ %@",
-                  self.callbackId,
+                  callbackId,
                   r.completedChangesCount,
                   r.changesCount,
                   r.pendingDocumentIDs,
@@ -106,19 +98,21 @@
                   r);
             break;
         case kCBLReplicationStopped:
-            // TODO remove from registry when done?
             NSLog(@"%@: REPL STOPPED: %d of %d [%@] %@ %@",
-                  self.callbackId,
+                  callbackId,
                   r.completedChangesCount,
                   r.changesCount,
                   r.pendingDocumentIDs,
                   r.lastError,
                   r);
-            keep = NO;
-            break;
+            
+            // call the manager to stop the replication
+            return [self.mgr onDatabase:self.command
+                                  named:r.localDatabase.name
+                                 action:@"stopReplicate"];
     }
 
-    return [self send:out andKeep:keep];
+    return [self.mgr result:self.command withDict:out andKeep:YES];
 }
 
 @end

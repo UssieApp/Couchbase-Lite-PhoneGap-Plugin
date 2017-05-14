@@ -36,25 +36,27 @@ typedef NS_ENUM(NSInteger, CBLiteResponseCode) {
 
 #pragma mark - Replies
 
--(void)result:(NSString*)callbackId fromError:(NSError*)error;
+-(void)result:(CDVInvokedUrlCommand*)command fromError:(NSError*)error;
 
--(void)result:(NSString*)callbackId fromException:(NSException*)eexception;
+-(void)result:(CDVInvokedUrlCommand*)command fromException:(NSException*)eexception;
 
--(void)resultOk:(NSString*)callbackId;
+-(void)resultOk:(CDVInvokedUrlCommand*)command;
 
--(void)result:(NSString*)callbackId withCode:(CBLiteResponseCode)code reason:(NSString*)reason andKeep:(BOOL)keep;
+-(void)result:(CDVInvokedUrlCommand*)command withCode:(CBLiteResponseCode)code reason:(NSString*)reason andKeep:(BOOL)keep;
 
--(void)result:(NSString*)callbackId withCode:(CBLiteResponseCode)code reason:(NSString*)reason;
+-(void)result:(CDVInvokedUrlCommand*)command withCode:(CBLiteResponseCode)code reason:(NSString*)reason;
 
--(void)result:(NSString*)callbackId withDict:(NSDictionary*)dict andKeep:(BOOL)keep;
+-(void)result:(CDVInvokedUrlCommand*)command withDict:(NSDictionary*)dict andKeep:(BOOL)keep;
 
--(void)result:(NSString*)callbackId withDict:(NSDictionary*)dict;
+-(void)result:(CDVInvokedUrlCommand*)command withDict:(NSDictionary*)dict;
 
--(void)result:(NSString*)callbackId withRevision:(CBLSavedRevision*)rev andKeep:(BOOL)keep;
+-(void)result:(CDVInvokedUrlCommand*)command withRevision:(CBLSavedRevision*)rev andKeep:(BOOL)keep;
 
--(void)result:(NSString*)callbackId withRevision:(CBLSavedRevision*)rev;
+-(void)result:(CDVInvokedUrlCommand*)command withRevision:(CBLSavedRevision*)rev;
 
 #pragma mark - Helpers
+
+-(void)onDatabase:(CDVInvokedUrlCommand *)command named:(NSString*)name action:(NSString*)action;
 
 +(NSDictionary*)docFromArguments:(CDVInvokedUrlCommand*)cmd atIndex:(int)index;
 
