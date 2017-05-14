@@ -3,8 +3,10 @@ exports.defineAutoTests = function() {
   var dbName = 'cb-tests';
 
   var testDocs = [
+    // docs with keys
     { _id: "1", name: "one", type: "foo" },
     { _id: "2", name: "two", type: "bar" },
+    // docs without keys
     { name: "three", type: "foo" },
     { name: "four", type: "bar" }
   ];
@@ -12,6 +14,8 @@ exports.defineAutoTests = function() {
   describe('window.cblite', function() {
 
     var db;
+
+    var db2;
 
     it("should exist", function() {
         expect(window.cblite).toBeDefined();
@@ -35,7 +39,7 @@ exports.defineAutoTests = function() {
       window.cblite.openDatabase(
         function(res) { done.fail(JSON.stringify(res)); },
         function(res) {
-            expect(res).toEqual(jasmine.objectContaining({ code: 404 }));
+            expect(res).toEqual(jasmine.objectContaining({ code: window.cblite.res_NotFound }));
             done();
         },
         dbName, false
@@ -46,7 +50,7 @@ exports.defineAutoTests = function() {
       window.cblite.openDatabase(
         function(res) { done.fail(JSON.stringify(res)); },
         function(res) {
-            expect(res).toEqual(jasmine.objectContaining({ code: 404 }));
+            expect(res).toEqual(jasmine.objectContaining({ code: window.cblite.res_NotFound }));
             done();
         },
         dbName
@@ -91,6 +95,19 @@ exports.defineAutoTests = function() {
       );
     });
 
+    it("should allow multiple databases to be open", function(done) {
+      var dbName2 = dbName + "_two";
+      window.cblite.openDatabase(
+        function(res) {
+            db2 = res;
+            expect(res).toEqual(jasmine.objectContaining({ name: dbName2 }));
+            done();
+        },
+        function(res) { done.fail(JSON.stringify(res)); },
+        dbName2, true
+      );
+    });
+
     it("should delete an existing database", function(done) {
         // TODO double check that the db was actually deleted
         db.deleteDatabase(
@@ -101,12 +118,22 @@ exports.defineAutoTests = function() {
             },
             function(res) { done.fail(JSON.stringify(res)); }
         );
+        db2.deleteDatabase(function() {}, function() {});
     });
   });
 
   describe('a database instance', function() {
 
     var db;
+
+    var seq = 0;
+
+    // a store of expected docs
+    var mock = [];
+
+    var addMock = function(i, doc, rev) {
+        mock[i] = Object.assign({}, doc, rev);
+    }
 
     beforeAll(function(done) {
         window.cblite.openDatabase(
@@ -143,13 +170,9 @@ exports.defineAutoTests = function() {
         });
     });
 
-    // FIXME break CRUD into different tests sets
-    describe('that supports CRUD', function() {
+    describe('allowing document CREATE', function() {
 
-        var count = 0;
-        var seq = 0;
-
-        it('should insert a document with a key (object)', function(done) {
+        it('should accept an object with a key', function(done) {
             var record = testDocs[0];
             db.add(
                 function(res) {
@@ -157,7 +180,7 @@ exports.defineAutoTests = function() {
                         _id: record._id,
                         _rev: jasmine.any(String)
                     });
-                    count++;
+                    addMock(0, record, res);
                     seq++;
                     done();
                 },
@@ -166,7 +189,7 @@ exports.defineAutoTests = function() {
             );
         });
 
-        it('should insert a document with a key (string)', function(done) {
+        it('should accept a JSON string with a key', function(done) {
             var record = testDocs[1];
             db.add(
                 function(res) {
@@ -174,7 +197,7 @@ exports.defineAutoTests = function() {
                         _id: record._id,
                         _rev: jasmine.any(String)
                     });
-                    count++;
+                    addMock(1, record, res);
                     seq++;
                     done();
                 },
@@ -183,7 +206,31 @@ exports.defineAutoTests = function() {
             );
         });
 
-        it('should insert a document without a key (object)', function(done) {
+        it('should reject an object whose key already exists', function(done) {
+            var record = testDocs[0];
+            db.add(
+                function(res) { done.fail(JSON.stringify(res)); },
+                function(res) {
+                     expect(res).toEqual(jasmine.objectContaining({ code: window.cblite.res_Conflict }));
+                     done();
+                },
+                record
+            );
+        });
+
+        it('should reject a JSON string whose key already exists', function(done) {
+            var record = testDocs[0];
+            db.add(
+                function(res) { done.fail(JSON.stringify(res)); },
+                function(res) {
+                     expect(res).toEqual(jasmine.objectContaining({ code: window.cblite.res_Conflict }));
+                     done();
+                },
+                JSON.stringify(record)
+            );
+        });
+
+        it('should accept an object without a key', function(done) {
             var record = testDocs[2];
             db.add(
                 function(res) {
@@ -191,7 +238,7 @@ exports.defineAutoTests = function() {
                         _id: jasmine.any(String),
                         _rev: jasmine.any(String)
                     });
-                    count++;
+                    addMock(2, record, res);
                     seq++;
                     done();
                 },
@@ -200,7 +247,7 @@ exports.defineAutoTests = function() {
             );
         });
 
-        it('should insert a document without a key (string)', function(done) {
+        it('should accept a JSON string without a key', function(done) {
             var record = testDocs[3];
             db.add(
                 function(res) {
@@ -208,7 +255,7 @@ exports.defineAutoTests = function() {
                         _id: jasmine.any(String),
                         _rev: jasmine.any(String)
                     });
-                    count++;
+                    addMock(3, record, res);
                     seq++;
                     done();
                 },
@@ -220,7 +267,7 @@ exports.defineAutoTests = function() {
         describe('and then', function() {
             it('should have an accurate documentCount', function(done) {
                 db.documentCount(
-                    function(res) { expect(res).toEqual({ count: count }); done(); },
+                    function(res) { expect(res).toEqual({ count: mock.length }); done(); },
                     function(res) { done.fail(JSON.stringify(res)); }
                 );
             });
@@ -232,9 +279,23 @@ exports.defineAutoTests = function() {
                 );
             });
         });
+    });
 
-        it('should get a record directly by its key', function(done) {
-            var record = testDocs[0];
+    describe('allowing document READ', function() {
+        it('should get a record directly by its known key', function(done) {
+            var record = mock[0];
+            db.get(
+                function(res) {
+                    expect(res).toEqual(jasmine.objectContaining(record));
+                    done();
+                },
+                function(res) { done.fail(JSON.stringify(res)); },
+                record._id
+            );
+        });
+
+        it('should get a record directly by its auto key', function(done) {
+            var record = mock[2];
             db.get(
                 function(res) {
                     expect(res).toEqual(jasmine.objectContaining(record));
@@ -252,39 +313,90 @@ exports.defineAutoTests = function() {
                     done();
                 },
                 function(res) { done.fail(JSON.stringify(res)); },
-                "no_a_real_record"
+                "not_a_real_record"
+            );
+        });
+    });
+
+    describe('allowing document UPDATE', function() {
+        it('should succeed when revision matches', function(done) {
+            var record = mock[0];
+            var modified = Object.assign({}, record, { name: 'modified' });
+
+            db.update(
+                function(res) {
+                    expect(res).toEqual({
+                        _id: jasmine.any(String),
+                        _rev: jasmine.any(String)
+                    });
+                    expect(res._rev).not.toEqual(record._rev);
+                    addMock(0, modified, res);
+                    seq++;
+                    done();
+                },
+                function(res) { done.fail(JSON.stringify(res)); },
+                modified
             );
         });
 
-        it('should update a record', function(done) {
-            var record = testDocs[1];
-            db.get(
-                function(doc) {
-                    doc.name = 'modified';
+        it('should fail when revision does not match', function(done) {
+            var record = mock[1];
+            var modified = Object.assign({}, record, { name: 'modified' });
+            db.update(
+                function(res) {
+                    // we have a new revision, but let's try with the old one
+                    modified.name = 'modified again';
+                    seq++;
                     db.update(
-                        function(res) {
-                            expect(res).toEqual({
-                                _id: jasmine.any(String),
-                                _rev: jasmine.any(String)
-                            });
-                            seq++;
-                            done();
-                        },
                         function(res) { done.fail(JSON.stringify(res)); },
-                        doc
+                        function(res) {
+                             expect(res).toEqual(jasmine.objectContaining({ code: window.cblite.res_Conflict }));
+                             done();
+                        },
+                        modified
                     );
                 },
                 function(res) { done.fail(JSON.stringify(res)); },
-                record._id
+                modified
+            );
+        });
+
+        it('should fail when no revision is provided', function(done) {
+            var record = mock[1];
+            var modified = Object.assign({}, record, { name: 'modified' });
+            delete modified._rev;
+
+            db.update(
+                function(res) { done.fail(JSON.stringify(res)); },
+                function(res) {
+                     expect(res).toEqual(jasmine.objectContaining({ code: window.cblite.res_Conflict }));
+                     done();
+                },
+                modified
+            );
+        });
+
+        it('should fail when no _id is provided', function(done) {
+            var record = mock[1];
+            var modified = Object.assign({}, record, { name: 'modified' });
+            delete modified._id;
+
+            db.update(
+                function(res) { done.fail(JSON.stringify(res)); },
+                function(res) {
+                     expect(res).toEqual(jasmine.objectContaining({ code: window.cblite.res_BadRequest }));
+                     done();
+                },
+                modified
             );
         });
 
         describe('and then', function() {
             it('should retain the edits', function(done) {
-                var record = testDocs[1];
+                var record = mock[0];
                 db.get(
                     function(res) {
-                        expect(res).toEqual(jasmine.objectContaining({ name: 'modified' }));
+                        expect(res).toEqual(record);
                         done();
                     },
                     function(res) { done.fail(JSON.stringify(res)); },
@@ -295,7 +407,7 @@ exports.defineAutoTests = function() {
 
             it('should have an accurate documentCount', function(done) {
                 db.documentCount(
-                    function(res) { expect(res).toEqual({ count: count }); done(); },
+                    function(res) { expect(res).toEqual({ count: mock.length }); done(); },
                     function(res) { done.fail(JSON.stringify(res)); }
                 );
             });
@@ -307,7 +419,52 @@ exports.defineAutoTests = function() {
                 );
             });
         });
+    });
 
+    describe('allowing document DELETE', function() {
+        it('should delete a record directly by its key', function(done) {
+            // use the last one, so it can most easily be popped from the mock
+            var record = mock[mock.length - 1];
+            db.remove(
+                function(res) {
+                    expect(res).not.toEqual(jasmine.anything());
+                    console.log(JSON.stringify(mock));
+                    mock.pop();
+                    console.log(JSON.stringify(mock));
+                    seq++;
+                    done();
+                },
+                function(res) { done.fail(JSON.stringify(res)); },
+                record._id
+            );
+        });
+
+        it('should succeed if record is already deleted', function(done) {
+            db.remove(
+               function(res) {
+                    expect(res).not.toEqual(jasmine.anything());
+                    done();
+                },
+                function(res) { done.fail('FAIL: ' + JSON.stringify(res)); },
+                'not_a_real_record'
+            );
+        });
+
+        describe('and then', function() {
+            it('should have an accurate documentCount', function(done) {
+                db.documentCount(
+                    function(res) { expect(res).toEqual({ count: mock.length }); done(); },
+                    function(res) { done.fail(JSON.stringify(res)); }
+                );
+            });
+
+            it('should have an increasing lastSequence', function(done) {
+                db.lastSequenceNumber(
+                    function(res) { expect(res).toEqual({ last_seq: seq }); done(); },
+                    function(res) { done.fail(JSON.stringify(res)); }
+                );
+            });
+        });
     });
 
   });

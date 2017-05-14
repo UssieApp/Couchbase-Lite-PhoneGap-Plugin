@@ -1,4 +1,16 @@
 module.exports = {
+
+    res_OK                     : 200,
+    res_Created                : 201,
+    res_Accepted               : 202,
+
+    res_BadRequest             : 400,
+    res_RequiresAuthentication : 401,
+    res_Forbidden              : 403,
+    res_NotFound               : 404,
+    res_Conflict               : 409,
+
+    res_Exception              : 500,
     
     info: function(onSuccess, onError) {
         cordova.exec(onSuccess, onError, "CBLite", "info", []);

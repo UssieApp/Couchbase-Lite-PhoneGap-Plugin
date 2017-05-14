@@ -15,6 +15,7 @@ typedef NS_ENUM(NSInteger, CBLiteResponseCode) {
     cblRequiresAuthentication = 401,
     cblForbidden              = 403,
     cblNotFound               = 404,
+    cblConflict               = 409,
     
     cblException              = 500
 };
