@@ -45,7 +45,11 @@
     }
 
     return [self.mgr result:self.command
-                   withDict:@{ @"results": converted, @"last_seq": lastSeq }
+                   withDict:@{
+                              @"results": converted,
+                              @"last_seq": lastSeq,
+                              @"watch_id": self.command.callbackId
+                              }
                     andKeep:YES];
 }
 

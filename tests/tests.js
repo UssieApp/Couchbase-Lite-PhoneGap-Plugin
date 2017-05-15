@@ -4,11 +4,18 @@ exports.defineAutoTests = function() {
 
   var testDocs = [
     // docs with keys
-    { _id: "1", name: "one", type: "foo" },
-    { _id: "2", name: "two", type: "bar" },
+    { _id: "1", name: "one",   type: "foo" },
+    { _id: "2", name: "two",   type: "bar" },
     // docs without keys
-    { name: "three", type: "foo" },
-    { name: "four", type: "bar" }
+    {           name: "three", type: "foo" },
+    {           name: "four",  type: "bar" },
+    // more random records
+    {           name: "five",  type: "foo" },
+    {           name: "six",   type: "bar" },
+    {           name: "seven", type: "foo" },
+    {           name: "eight", type: "bar" },
+    {           name: "nine",  type: "foo" },
+    {           name: "ten",   type: "bar" }
   ];
 
   describe('window.cblite', function() {
@@ -135,12 +142,16 @@ exports.defineAutoTests = function() {
         mock[i] = Object.assign({}, doc, rev);
     }
 
+    var watch, watchId;
+
     beforeAll(function(done) {
         window.cblite.openDatabase(
             function(res) { db = res; done(); },
             function(res) { done.fail(JSON.stringify(res)); },
             dbName, true
         );
+
+        watch = jasmine.createSpy('watch');
     });
 
     afterAll(function(done) {
@@ -152,6 +163,20 @@ exports.defineAutoTests = function() {
 
     it('should know its own name', function() {
         expect(db.name).toEqual(dbName);
+    });
+
+    it('should register a watch', function(done) {
+        db.watch(
+            function(res) {
+                watch(res);
+                if (!watchId) {
+                    watchId = res.watch_id;
+                }
+                expect(res).toEqual(jasmine.objectContaining({ watch_id: jasmine.any(String) }));
+                done();
+            },
+            function(res) { done.fail(JSON.stringify(res)); }
+        );
     });
 
     describe('when newly created', function() {
@@ -428,9 +453,7 @@ exports.defineAutoTests = function() {
             db.remove(
                 function(res) {
                     expect(res).not.toEqual(jasmine.anything());
-                    console.log(JSON.stringify(mock));
                     mock.pop();
-                    console.log(JSON.stringify(mock));
                     seq++;
                     done();
                 },
@@ -467,28 +490,20 @@ exports.defineAutoTests = function() {
         });
     });
 
-    describe('using a changes listener', function() {
+    it('should cancel a running watch', function(done) {
+        db.stopWatch(
+            function(res) {
+                expect(res).not.toEqual(jasmine.anything());
+                done();
+            },
+            function(res) { done.fail(JSON.stringify(res)); },
+            watchId
+        );
+    });
 
-        var watchId;
-
-        var watch = {
-            result: function(res) {
-                expect(res).toEqual({ watch_id: jasmine.any(String) });
-            }
-        };
-
-        spyOn(watched, 'result').and.callThrough();
-
-        it('should register a watch', function(done) {
-            db.watch(
-                function(res) {
-                    watch.result(res);
-                    done();
-                },
-                function(res) { done.fail(JSON.stringify(res)); }
-            );
-        });
-
+    it('should have captured changes', function() {
+        // the sequence + the initial call should match the number of change
+        expect(watch.calls.count()).toEqual(seq + 1);
     });
 
   });
