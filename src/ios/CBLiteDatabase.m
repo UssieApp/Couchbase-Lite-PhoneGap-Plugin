@@ -77,6 +77,10 @@
 
     NSDictionary* opts = [command argumentAtIndex:5];
 
+    if (!map || [map isEqualToString:@""]) {
+        return [self.mgr result:command withCode:cblBadRequest reason:@"map_function_required"];
+    }
+
     [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
                                                           to:^(CBLDatabase* db) {
         @try {
@@ -94,6 +98,8 @@
 
                 view.documentType = opts[@"type"];
             }
+
+            NSLog(@"map: %@ cleanMap: %@", map, cleanMap);
 
             id c = [CBLView compiler];
             if (reduce) {
@@ -151,6 +157,25 @@
         return [self.mgr result:command fromException:exception];
     }
 }
+
+-(void)unsetView: (CDVInvokedUrlCommand*)command
+{
+    NSString* viewName = [command argumentAtIndex:2];
+
+    [[CBLManager sharedInstance] backgroundTellDatabaseNamed:self.name
+                                                          to:^(CBLDatabase* db) {
+        @try {
+            CBLView* v = [db existingViewNamed:viewName];
+            if (v) {
+                [v deleteView];
+            }
+            return [self.mgr resultOk:command];
+         } @catch (NSException* exception) {
+             return [self.mgr result:command fromException:exception];
+         }
+    }];
+}
+
 
 -(void)getFromView:(CDVInvokedUrlCommand *)command
 {

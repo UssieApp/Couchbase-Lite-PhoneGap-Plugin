@@ -30,6 +30,8 @@
 
 - (void) setViewFromAssets: (CDVInvokedUrlCommand*)command;
 
+- (void) unsetView: (CDVInvokedUrlCommand*)command;
+
 - (void) getFromView: (CDVInvokedUrlCommand*)command;
 
 - (void) getAll: (CDVInvokedUrlCommand*)command;

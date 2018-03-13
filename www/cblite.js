@@ -11,6 +11,12 @@ module.exports = {
     res_Conflict               : 409,
 
     res_Exception              : 500,
+
+    repl_Stopped               : 0,
+    repl_Offline               : 1,
+    repl_Idle                  : 2,
+    repl_Active                : 3,
+
     
     info: function(onSuccess, onError) {
         cordova.exec(onSuccess, onError, "CBLite", "info", []);
@@ -62,6 +68,10 @@ module.exports = {
 
                 setViewFromAssets: function(onSuccess, onError, viewName, version, path, options) {
                     cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "setViewFromAssets", viewName, version, path, options ]);
+                },
+
+                unsetView: function(onSuccess, onError, viewName) {
+                    cordova.exec(onSuccess, onError, "CBLite", "onDatabase", [ name, "unsetView", viewName ]);
                 },
 
                 getFromView: function(onSuccess, onError, viewName, params) {

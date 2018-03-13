@@ -62,7 +62,7 @@
     NSMutableDictionary* out = [NSMutableDictionary dictionary];
 
     out[@"replication_id"] = callbackId;
-    out[@"status"] = [NSNumber numberWithInt:r.status];
+    out[@"status"] = @(r.status);
 
     if (r.lastError) {
         out[@"last_error"] = r.lastError;

@@ -2,21 +2,131 @@ exports.defineAutoTests = function() {
 
   var dbName = 'cb-tests';
 
+  /*
+
+  before:
+  create db
+  add sync
+  add user
+  insert test records
+
+  then:
+  push sync - once
+  pull sync - once
+
+  start push continuous
+  start pull continuous
+
+  inject local records
+  inject remote records
+
+  stop push
+  stop pull
+
+  after:
+  delete db
+
+  */
+
   var testDocs = [
     // docs with keys
-    { _id: "1", name: "one",   type: "foo" },
-    { _id: "2", name: "two",   type: "bar" },
+    { _id: "1", name: "one",   type: "foo", channels: [ 'all' ] },
+    { _id: "2", name: "two",   type: "bar", channels: [ 'all' ] },
     // docs without keys
-    {           name: "three", type: "foo" },
-    {           name: "four",  type: "bar" },
+    {           name: "three", type: "foo", channels: [ 'all' ] },
+    {           name: "four",  type: "bar", channels: [ 'all' ] },
     // more random records
-    {           name: "five",  type: "foo" },
-    {           name: "six",   type: "bar" },
-    {           name: "seven", type: "foo" },
-    {           name: "eight", type: "bar" },
-    {           name: "nine",  type: "foo" },
-    {           name: "ten",   type: "bar" }
+    {           name: "five",  type: "foo", channels: [ 'all' ] },
+    {           name: "six",   type: "bar", channels: [ 'all' ] },
+    {           name: "seven", type: "foo", channels: [ 'all' ] },
+    {           name: "eight", type: "bar", channels: [ 'all' ] },
+    {           name: "nine",  type: "foo", channels: [ 'all' ] },
+    {           name: "ten",   type: "bar", channels: [ 'all' ] }
   ];
+
+  var serverDocs = [
+    {           name: "A",     type: "foo", channels: [ 'all' ] },
+    {           name: "B",     type: "bar", channels: [ 'all' ] },
+    {           name: "C",     type: "foo", channels: [ 'all' ] },
+    {           name: "D",     type: "bar", channels: [ 'all' ] },
+    {           name: "E",     type: "foo", channels: [ 'all' ] },
+    {           name: "F",     type: "bar", channels: [ 'all' ] }
+  ];
+
+  var views = {
+    "map_only": {
+        map: "function(doc) { emit(doc.name); }"
+    },
+    "map_reduce": {
+        map: "function(doc) { emit([doc.type, doc.name], 1); }",
+        reduce: "function(k, v, r) { var o = 0; for(var i in v) { o += v[i]; } return o; }"
+    },
+    "map_with_tokens": {
+        map: "function(doc) { if (doc.type === '{{DOCTYPE}}') { emit(doc.name); } }",
+        replace: { '{{DOCTYPE}}': 'foo' },
+        replace_later: { '{{DOCTYPE}}': 'foo' }
+    },
+    "map_with_type": {
+        map: "function(doc) { emit(doc.name); }",
+        type: "bar"
+    }
+  };
+
+/*
+  var remote = function(method, url, data, admin) {
+      var host = 'http://localhost:' + ((!!admin) ? '4985' : '4984');
+      var g = new XMLHttpRequest();
+      data = (data) ? JSON.stringify(data) : null;
+      try {
+          g.open(method, host + url, false);
+          g.setRequestHeader('Content-Type', 'application/json');
+          g.setRequestHeader('Accept', 'application/json');
+          g.withCredentials = true;
+          setTimeout(function() { g.status || g.abort(); }, 3000);
+          g.send(data);
+      } catch (e) {
+          console.log(e);
+      }
+      console.log(host + url, g, g.responseText);
+      console.log(g.getAllResponseHeaders());
+      return g.status;
+  };
+*/
+  var callDb = function(call) {
+      var url = 'http://localhost:' + ((!!call.admin) ? '4985' : '4984') + call.url;
+      return fetch(url, {
+          method: call.method,
+          headers: new  Headers({
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }),
+          credentials: 'same-origin',
+          body: (call.data) ? JSON.stringify(call.data) : null
+      });
+  };
+
+    var callReduce = function(prev, current) {
+        console.log("callReduce", prev, current);
+        if (!prev) {
+          return callDb(current);
+        }
+        //return callDb(current);
+        return prev.then(function(res) { console.log(res); return callDb(current); });
+    };
+
+  var remote = [ { method: 'GET', url: '/' }, { method: 'GET', url: '/', admin: true } ].reduce(callReduce, false);
+  remote.catch(function() { delete remote; });
+
+  if (remote) {
+    remote.then(function() {
+        [
+           { method: 'PUT', url: '/cordova_tests/', data: { users: { 'Tester': { password: 'pass', admin_channels: [ '*' ] } } }, admin: true },
+           { method: 'GET', url: '/cordova_tests/_session', data: { name: 'Tester', password: 'pass' } },
+           { method: 'GET', url: '/cordova_tests/' },
+           { method: 'DELETE', url: '/cordova_tests/', admin: true }
+         ].reduce(callReduce, false);
+    });
+  }
 
   describe('window.cblite', function() {
 
@@ -177,6 +287,81 @@ exports.defineAutoTests = function() {
             },
             function(res) { done.fail(JSON.stringify(res)); }
         );
+    });
+
+    describe('when registering a view', function() {
+        it('should succeed with a map but no reduce', function(done) {
+            var view = views['map_only'];
+            db.setView(
+                function(res) { expect(res).not.toEqual(jasmine.anything()); done(); },
+                function(res) { done.fail(JSON.stringify(res)); },
+                "map_only", "1", view
+            );
+        });
+
+        it('should succeed with full map/reduce', function(done) {
+            var view = views['map_reduce'];
+            db.setView(
+                function(res) { expect(res).not.toEqual(jasmine.anything()); done(); },
+                function(res) { done.fail(JSON.stringify(res)); },
+                "map_reduce", "1", view
+            );
+        });
+
+        it('should fail without a map', function(done) {
+            db.setView(
+                function(res) { done.fail(JSON.stringify(res)); },
+                function(res) {
+                    expect(res).toEqual(jasmine.objectContaining({ code: window.cblite.res_BadRequest }));
+                    done();
+                },
+                "no_map", "1", {}
+            );
+        });
+
+        it('should accept values to replace in the map', function(done) {
+            var view = views['map_with_tokens'];
+            db.setView(
+                function(res) { expect(res).not.toEqual(jasmine.anything()); done(); },
+                function(res) { done.fail(JSON.stringify(res)); },
+                "map_with_tokens", "1", { map: view.map }, { replace: view.replace }
+            );
+        });
+
+        it('should replace with a newer version number', function(done) {
+            var view = views['map_with_tokens'];
+            db.setView(
+                function(res) { expect(res).not.toEqual(jasmine.anything()); done(); },
+                function(res) { done.fail(JSON.stringify(res)); },
+                "map_with_tokens", "2", { map: view.map }, { replace: view.replace_later }
+            );
+        });
+
+        it('should succeed with a type field set', function(done) {
+            var view = views['map_with_type'];
+            db.setView(
+                function(res) { expect(res).not.toEqual(jasmine.anything()); done(); },
+                function(res) { done.fail(JSON.stringify(res)); },
+                "map_with_type", "1", { map: view.map }, { type: view.type }
+            );
+        });
+
+        it('should succeed when loading from assets', function(done) {
+            db.setViewFromAssets(
+                function(res) { expect(res).not.toEqual(jasmine.anything()); done(); },
+                function(res) { done.fail(JSON.stringify(res)); },
+                "map_from_assets", "1", "views"
+            );
+        });
+
+        it('should succeed when deleted', function(done) {
+            db.unsetView(
+                function(res) { expect(res).not.toEqual(jasmine.anything()); done(); },
+                function(res) { done.fail(JSON.stringify(res)); },
+                "map_from_assets"
+            );
+        });
+
     });
 
     describe('when newly created', function() {
